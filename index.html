@@ -14,7 +14,6 @@
   /* 2D слой с прозрачным фоном поверх 3D */
   #c { display: block; position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 2; pointer-events: none; }
 </style>
-<!-- Подключаем Three.js как ES-модуль -->
 <script type="importmap">
   {
     "imports": {
@@ -43,20 +42,19 @@ let W, H, S=1;
 // --- НАСТРОЙКА THREE.JS ---
 const scene3D = new THREE.Scene();
 scene3D.background = new THREE.Color('#c06c84'); // Цвет неба
-scene3D.fog = new THREE.FogExp2('#c06c84', 0.008); // Туман вдали
+scene3D.fog = new THREE.FogExp2('#c06c84', 0.008); // Туман
 
 const camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.1, 500);
 const renderer = new THREE.WebGLRenderer({ canvas: webglCanvas, antialias: true });
 renderer.shadowMap.enabled = true;
 
-// Свет
 const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
 scene3D.add(ambientLight);
 const dirLight = new THREE.DirectionalLight(0xffe14d, 1.5);
 dirLight.position.set(50, 100, -50);
 scene3D.add(dirLight);
 
-// Дорога (бесконечная иллюзия)
+// Дорога
 const roadGeo = new THREE.PlaneGeometry(24, 1000);
 const roadMat = new THREE.MeshStandardMaterial({ color: 0x3a3d45, roughness: 0.8 });
 const road = new THREE.Mesh(roadGeo, roadMat);
@@ -64,7 +62,7 @@ road.rotation.x = -Math.PI / 2;
 road.position.y = 0;
 scene3D.add(road);
 
-// Трава по бокам
+// Трава
 const grassGeo = new THREE.PlaneGeometry(200, 1000);
 const grassMat = new THREE.MeshStandardMaterial({ color: 0x355e3b, roughness: 1 });
 const grassL = new THREE.Mesh(grassGeo, grassMat);
@@ -88,7 +86,7 @@ function rs() {
 }
 window.addEventListener('resize', rs); rs();
 
-// --- БИБЛИОТЕКА 3D МОДЕЛЕЙ ---
+// --- ЗАГРУЗКА 3D МОДЕЛЕЙ ---
 const models3D = {
   player: new THREE.Group(),
   sedan: new THREE.Group(),
@@ -118,27 +116,23 @@ function extractCar(gltf, bodyKeyword, wheelKeyword, scale = 0.01) {
   return group;
 }
 
-// Функция для вывода ошибки на экран
 function onError(err) {
   console.error("Ошибка загрузки модели:", err);
   loadProgress = "Ошибка загрузки! Открой консоль (F12)";
 }
 
-// Загружаем пак трафика 1 (обрати внимание, добавил ./ перед models)
 loader.load('./models/generic_passenger_car_pack.glb', (gltf) => {
   models3D.sedan = extractCar(gltf, 'Sedan', 'Wheel_A', 0.012);
   models3D.hatch = extractCar(gltf, 'Hatchback', 'Wheel_B', 0.012);
   checkLoad();
 }, undefined, onError);
 
-// Загружаем пак трафика 2
 loader.load('./models/low_poly_vehicle_mini_pack_3.glb', (gltf) => {
   models3D.bus = extractCar(gltf, 'city_bus', 'city_bus', 0.015);
-  models3D.truck = extractCar(gltf, 'bus_long', 'bus_long', 0.015);
+  models3D.truck = extractCar(gltf, 'bus_long', 'bus_long', 0.015); 
   checkLoad();
 }, undefined, onError);
 
-// Загружаем машину игрока
 loader.load('./models/lct_3000_95_-_low_poly_model.glb', (gltf) => {
   const car = gltf.scene;
   car.scale.set(0.01, 0.01, 0.01);
@@ -156,7 +150,7 @@ function checkLoad() {
   }
 }
 
-// --- ИГРОВАЯ ЛОГИКА (Осталась почти без изменений!) ---
+// --- ФИЗИКА И ЛОГИКА ---
 const LW=3.6, HALF=LW*2, LANES=[-5.4, -1.8, 1.8, 5.4], FAR=380, CH=1.15;
 const TYPES={car:{w:1.8,h:1.45,L:4.4,v:[22,32]},truck:{w:2.5,h:3.6,L:10,v:[15,20]},bus:{w:2.55,h:3.2,L:12,v:[17,23]}};
 const K={L:['ArrowLeft','KeyA'],R:['ArrowRight','KeyD'],U:['ArrowUp','KeyW'],D:['ArrowDown','KeyS']};
@@ -172,13 +166,99 @@ const SHV=[20.4,26,33,42,53.5,68],CARS=[
  {name:'Суперкар',price:12000,v:92,a:9,h:1.2,cyl:3.2,col:'#27ae60',cab:.65, mass:1300, cog:0.005, pops:true}];
  
 let held={},tm=a=>Math.max(...a.map(k=>held[k]||0));
-let state='loading',best=0,P,cars,shake=0,flash=0,popup='',popT=0,last=0;
+// ИСПРАВЛЕНИЕ ОШИБКИ ЗДЕСЬ: cars инициализирован как пустой массив
+let state='loading',best=0,P,cars=[],shake=0,flash=0,popup='',popT=0,last=0;
+
 try{best=+localStorage.getItem('tr_best')||0;coins=+localStorage.getItem('tr_coins')||0;own=(localStorage.getItem('tr_own')||'0').split(',').map(Number).filter(n=>n>=0&&n<CARS.length);sel=+localStorage.getItem('tr_sel')||0;const sv=localStorage.getItem('tr_vol'),sd=localStorage.getItem('tr_dens');if(sv!==null)vol=Math.max(0,Math.min(1,+sv));if(sd!==null)dens=Math.max(1,Math.min(5,+sd||3))}catch(e){}
 if(!own.includes(sel))sel=0;
 
 function applyCar(){CAR=CARS[sel];VMAX=CAR.v;KG=SHV.map(x=>7000/(x*VMAX/68));const top=VMAX*3.6;MSTEP=[20,30,40,50,60].find(m=>Math.ceil(top/m)<=7)||60;MAXS=Math.ceil(top/MSTEP)*MSTEP;CAR.cd=(CAR.a*Tn(7000)*KG[5]/KG[0]*.98-.35)/(VMAX*VMAX)}
 function save(){try{localStorage.setItem('tr_coins',coins);localStorage.setItem('tr_own',own.join(','));localStorage.setItem('tr_sel',sel);localStorage.setItem('tr_vol',vol);localStorage.setItem('tr_dens',dens)}catch(e){}applyCar()}
 applyCar();
+
+// --- ЗВУК ---
+const sfx=(()=>{
+  let ac,NB,mst,o=[],eg,egFront,ef,wg,wf,tg,qg,engPan,exhPan,mute=false,lastScr=0;
+  const noise=()=>{const s=ac.createBufferSource();s.buffer=NB;s.loop=true;s.start();return s};
+  const chain=(src,type,fq,q,gain)=>{const f=ac.createBiquadFilter();f.type=type;f.frequency.value=fq;f.Q.value=q;const g=ac.createGain();g.gain.value=gain;src.connect(f);f.connect(g);g.connect(mst);return[f,g]};
+  function init(){
+    if(ac)return;
+    try{ac=new(window.AudioContext||window.webkitAudioContext)()}catch(e){return}
+    NB=ac.createBuffer(1,ac.sampleRate*2,ac.sampleRate);const d=NB.getChannelData(0);for(let i=0;i<d.length;i++)d[i]=Math.random()*2-1;
+    const cmp=ac.createDynamicsCompressor();mst=ac.createGain();mst.gain.value=vol;mst.connect(cmp);cmp.connect(ac.destination);
+    
+    const lis = ac.listener;
+    if(lis.positionX) { lis.positionX.value=0; lis.positionY.value=0; lis.positionZ.value=0; lis.forwardX.value=0; lis.forwardY.value=0; lis.forwardZ.value=-1; } 
+    else if(lis.setPosition) { lis.setPosition(0,0,0); lis.setOrientation(0,0,-1,0,1,0); }
+
+    engPan = ac.createPanner(); engPan.panningModel = 'HRTF'; engPan.setPosition(0, -0.4, -1.5);
+    exhPan = ac.createPanner(); exhPan.panningModel = 'HRTF'; exhPan.setPosition(0, -0.4, 2.5);
+
+    const cabinOut = ac.createBiquadFilter();
+    cabinOut.type = 'lowpass'; cabinOut.frequency.value = 1600; 
+    cabinOut.connect(mst);
+    engPan.connect(cabinOut); exhPan.connect(cabinOut);
+
+    const ws=ac.createWaveShaper(),cr=new Float32Array(256);for(let i=0;i<256;i++)cr[i]=Math.tanh((i/128-1)*2.2);ws.curve=cr;
+    ef=ac.createBiquadFilter();ef.type='lowpass';ef.Q.value=1.5;
+    eg=ac.createGain();eg.gain.value=0; 
+    egFront=ac.createGain();egFront.gain.value=0; 
+
+    const mixFront = ac.createGain(); mixFront.connect(egFront); egFront.connect(engPan);
+    ws.connect(ef); ef.connect(eg); eg.connect(exhPan);
+
+    for(const [t,r,g,isFront] of [['sawtooth',1,.15,true],['square',2.003,.1,true],['sawtooth',.5,.5,false],['sine',1,.7,false],['sine',.5,.5,false]]){
+      const s=ac.createOscillator(),gg=ac.createGain();s.type=t;gg.gain.value=g;s.connect(gg);
+      gg.connect(isFront ? mixFront : ws); s.start();o.push([s,r]);
+    }
+    [wf,wg]=chain(noise(),'lowpass',400,.5,0);
+    [,tg]=chain(noise(),'lowpass',220,.7,0);
+    [,qg]=chain(noise(),'bandpass',1800,8,0);
+  }
+  function burst(type,f1,f2,q,gain,dur){
+    if(!ac||mute)return;const t=ac.currentTime,s=ac.createBufferSource(),f=ac.createBiquadFilter(),g=ac.createGain();
+    s.buffer=NB;s.loop=true;f.type=type;f.Q.value=q;f.frequency.setValueAtTime(f1,t);f.frequency.exponentialRampToValueAtTime(f2,t+dur);
+    g.gain.setValueAtTime(.0001,t);g.gain.exponentialRampToValueAtTime(gain,t+dur*.25);g.gain.exponentialRampToValueAtTime(.0001,t+dur);
+    s.connect(f);f.connect(g);g.connect(mst);s.start(t);s.stop(t+dur+.05);
+  }
+  function tone(f1,f2,dur,gain,type='sine',delay=0){
+    if(!ac||mute)return;const t=ac.currentTime+delay,s=ac.createOscillator(),f=ac.createBiquadFilter(),g=ac.createGain();
+    s.type=type;f.type='lowpass';f.frequency.value=1800;s.frequency.setValueAtTime(f1,t);s.frequency.exponentialRampToValueAtTime(f2,t+dur);
+    g.gain.setValueAtTime(.0001,t);g.gain.exponentialRampToValueAtTime(gain,t+.02);g.gain.setValueAtTime(gain,t+dur*.7);g.gain.exponentialRampToValueAtTime(.0001,t+dur);
+    s.connect(f);f.connect(g);g.connect(mst);s.start(t);s.stop(t+dur+.05);
+  }
+  return{
+    init,
+    toggle(){mute=!mute;if(ac)mute?ac.suspend():ac.resume();popup=mute?'Звук выкл':'Звук вкл';popT=1},
+    shift(){burst('bandpass',3200,1500,1.5,.12,.16);tone(95,60,.08,.15,'square')},
+    scrape(){const n=performance.now();if(n-lastScr>180){lastScr=n;burst('bandpass',2500,1800,2,.25,.25)}},
+    crash(){burst('lowpass',2500,80,.8,1.2,1.1);burst('highpass',3000,800,.7,.6,.5);tone(110,35,.6,.9)},
+    pop(){
+      if(!ac||mute)return;
+      const t = ac.currentTime, s = ac.createBufferSource(), f = ac.createBiquadFilter(), g = ac.createGain();
+      s.buffer = NB; s.loop = true;
+      f.type = 'bandpass'; f.frequency.value = 140 + Math.random()*200; f.Q.value = 1.1; 
+      g.gain.setValueAtTime(.0001, t);
+      g.gain.exponentialRampToValueAtTime(4.0 + Math.random()*2.0, t + .01);
+      g.gain.exponentialRampToValueAtTime(.0001, t + .15 + Math.random()*.15);
+      s.connect(f); f.connect(g); g.connect(exhPan);
+      s.start(t); s.stop(t + .4);
+    },
+    update(){
+      if(!ac)return;
+      if(state==='pause'||mute){if(ac.state==='running')ac.suspend();return}
+      if(ac.state==='suspended')ac.resume();
+      const t=ac.currentTime,vn=P.v/VMAX,run=state==='play'&&P.crash===0,thr=run?P.thr:0,f=P.rpm/60*CAR.cyl;
+      for(const [s,r] of o)s.frequency.setTargetAtTime(f*r,t,.03);
+      ef.frequency.setTargetAtTime(240+P.rpm*.22+thr*450,t,.05);
+      eg.gain.setTargetAtTime(run?(.28+.20*thr+.15*P.rpm/7000)*(P.sh>0?.45:1):0,t,.04);
+      egFront.gain.setTargetAtTime(run?(.08+.05*thr+.03*P.rpm/7000):0,t,.04); 
+      wf.frequency.setTargetAtTime(300+vn*1100,t,.1);wg.gain.setTargetAtTime(vn*vn*.2*(P.crash>0?.3:1),t,.1);
+      tg.gain.setTargetAtTime(vn*.16,t,.1);
+      qg.gain.setTargetAtTime(run?Math.max(0,Math.abs(P.vx)-4)*vn*.03:0,t,.05);
+    }
+  };
+})();
 
 function garageKey(c){
   if(c==='ArrowLeft'||c==='KeyA')gi=(gi+CARS.length-1)%CARS.length;
@@ -195,6 +275,7 @@ window.addEventListener('keydown',e=>{
   if(['ArrowLeft','ArrowRight','ArrowUp','ArrowDown','Space'].includes(e.code))e.preventDefault();
   if(e.repeat)return;
   held[e.code]=performance.now();
+  sfx.init();if(e.code==='KeyM')sfx.toggle();
   if(state==='garage'){garageKey(e.code);return}
   if(e.code==='KeyG'&&(state==='menu'||state==='over')){gFrom=state;gi=sel;state='garage';return}
   if(e.code==='Space'||e.code==='Enter'){if(state==='pause')state='play';else if(state!=='play')start()}
@@ -205,10 +286,7 @@ window.addEventListener('keyup',e=>{held[e.code]=0});
 function start(){
   applyCar();
   P={x:LANES[2],vx:0,v:40/3.6,s:0,thr:0,brk:0,z:0,bonus:0,combo:0,comboT:0,roll:0,crash:0,rpm:900,gear:1,pk:0,pkv:0,sh:0,gt:0,popCd:0,offGasT:0};
-  
-  // Очищаем старые 3D объекты машин из сцены
   if(cars) cars.forEach(c => scene3D.remove(c.mesh));
-  
   cars=[]; shake=0; flash=0; popT=0; state='play';
   for(let i=0;i<DENS[dens-1];i++) spawn(45+i*330/DENS[dens-1]);
 }
@@ -224,7 +302,6 @@ function spawn(zr){
     let ahead=null;for(const o of cars)if(o.ln===ln&&o.z>z&&(!ahead||o.z<ahead.z))ahead=o;
     const vv=ahead&&ahead.z-z<80?Math.min(vv0,ahead.v):vv0;
     
-    // ВЫБОР 3D МОДЕЛИ ИЗ ШАБЛОНОВ
     let meshTemplate = models3D.sedan;
     if (k === 'car' && Math.random() > 0.5) meshTemplate = models3D.hatch;
     if (k === 'bus') meshTemplate = models3D.bus;
@@ -238,7 +315,7 @@ function spawn(zr){
   }
 }
 
-function hit(){ P.crash=.001; shake=1; flash=1; P.roll=(Math.random()<.5?-1:1)*.1; popup=''; }
+function hit(){ sfx.crash(); P.crash=.001; shake=1; flash=1; P.roll=(Math.random()<.5?-1:1)*.1; popup=''; }
 const score=()=>(P.z/10|0)+P.bonus;
 
 function step(dt){
@@ -266,7 +343,7 @@ function step(dt){
     P.roll += (-P.vx * CAR.cog - P.roll) * Math.min(1, 12 * dt);
 
     const lim=HALF-.95;
-    if(Math.abs(P.x)>lim){P.x=Math.sign(P.x)*lim;P.vx=-P.vx*.15;P.v*=1-1.2*dt;shake=Math.max(shake,.25);}
+    if(Math.abs(P.x)>lim){P.x=Math.sign(P.x)*lim;P.vx=-P.vx*.15;P.v*=1-1.2*dt;shake=Math.max(shake,.25);sfx.scrape();}
   }else{
     P.v=Math.max(0,P.v-45*dt);P.vx*=.9;P.s*=.95;P.roll*=.95;P.crash+=dt;
     if(P.crash>1.4&&state==='play'){state='over';lastGain=score();coins+=lastGain;save();if(score()>best){best=score();try{localStorage.setItem('tr_best',best)}catch(e){}}}
@@ -277,11 +354,19 @@ function step(dt){
     const g=P.gear,up=7200,dn=4200+600*P.thr+(P.brk>.3?500:0);let tg=g;
     while(tg<6&&P.v*KG[tg-1]>=up&&P.v*KG[tg]>dn+500)tg++;          
     while(tg>1&&P.v*KG[tg-1]<dn&&P.v*KG[tg-2]<6900)tg--;           
-    if(tg!==g){P.gear=tg;P.sh=.22;P.gt=tg>g?.7:.5;if(tg>g&&P.thr>.2&&P.crash===0&&state==='play'){P.pkv+=.22;}}
+    if(tg!==g){P.gear=tg;P.sh=.22;P.gt=tg>g?.7:.5;if(tg>g&&P.thr>.2&&P.crash===0&&state==='play'){P.pkv+=.22;sfx.shift();}}
   }
   P.pkv+=(-120*(P.pk-(P.thr*.005-P.brk*.014))-14*P.pkv)*dt;P.pk+=P.pkv*dt;
   const tgt=Math.min(7300,Math.max(P.v*KG[P.gear-1],900+(P.gear===1?P.thr*2200:0)));
   P.rpm+=(tgt-P.rpm)*Math.min(1,dt*(tgt<P.rpm?14:22));
+  
+  // Отстрелы выхлопа
+  if (P.thr < 0.1) P.offGasT += dt; else P.offGasT = 0;
+  if(CAR.pops && P.thr < 0.1 && P.offGasT < 1.5 && P.rpm > 3500 && P.crash === 0) {
+    if(P.popCd <= 0 && Math.random() < 0.3) { sfx.pop(); P.popCd = 0.08 + Math.random() * 0.15; }
+  }
+  P.popCd = Math.max(0, P.popCd - dt);
+  
   P.z+=P.v*dt;P.comboT-=dt;if(P.comboT<=0)P.combo=0;
   shake=Math.max(0,shake-dt*1.6);flash=Math.max(0,flash-dt*1.5);popT=Math.max(0,popT-dt);
   
@@ -301,7 +386,6 @@ function step(dt){
     else if(rel<1.9){c.gap=Math.min(c.gap,gap);if(gap<-.06&&P.crash===0)hit()}
   }
   
-  // Удаляем отставшие машины и добавляем новые
   cars = cars.filter(c => {
       if(c.z - P.z < -45) { scene3D.remove(c.mesh); return false; }
       return true;
@@ -354,29 +438,22 @@ function ai(c,dt){
   if(slow)c.cd=.6;
 }
 
-// --- РЕНДЕРИНГ 3D И 2D ---
 function render3D() {
   if (!modelsLoaded || !P) return;
-  
-  // Тряска камеры при аварии
   let sx=0, sy=0;
   if(shake>0){ sx=(Math.random()-.5)*shake*0.5; sy=(Math.random()-.5)*shake*0.5; }
   
-  // Устанавливаем позицию камеры от первого лица. Обрати внимание на знак минус перед P.z!
   camera.position.set(P.x + sx, CH + sy + P.pk*0.1, -P.z);
   camera.rotation.z = -P.roll;
-  camera.rotation.y = -P.s * 0.05; // Легкий поворот головы за рулем
+  camera.rotation.y = -P.s * 0.05;
   
-  // Двигаем дорогу за игроком (чтобы избежать потери точности float)
   road.position.z = -P.z - 500;
   grassL.position.z = -P.z - 500;
   grassR.position.z = -P.z - 500;
 
-  // Обновляем позиции машин трафика
   for(const c of cars){
     if(c.mesh) {
         c.mesh.position.set(c.x, 0, -c.z);
-        // Машина слегка кренится при перестроении
         if(c.to !== undefined) c.mesh.rotation.z = (c.to > c.ln ? -1 : 1) * 0.03;
         else c.mesh.rotation.z = 0;
     }
@@ -385,7 +462,6 @@ function render3D() {
   renderer.render(scene3D, camera);
 }
 
-// 2D Отрисовка кабины (без изменений)
 const M=(a,b)=>[W/2+(a-.5)*S*1.778,H-(1-b)*S];
 function wsP(){const p=M;ctx.moveTo(...p(.30,.605));ctx.lineTo(...p(.283,.27));ctx.quadraticCurveTo(...p(.283,.215),...p(.34,.208));ctx.lineTo(...p(1.7,.19));ctx.lineTo(...p(1.7,.605));ctx.closePath()}
 function sdP(){const p=M;ctx.moveTo(...p(0,.1));ctx.lineTo(...p(.14,.37));ctx.lineTo(...p(.215,.62));ctx.lineTo(...p(.197,.71));ctx.lineTo(...p(0,.805));ctx.closePath()}
@@ -403,7 +479,7 @@ function dial(x,y,r,v,max,step,lab,red){
   ctx.fillStyle='#1b1d22';ctx.beginPath();ctx.arc(x,y,r*.09,0,7);ctx.fill();
 }
 function cockpit(){
-  ctx.clearRect(0, 0, cv.width, cv.height); // Очищаем 2D холст, чтобы было видно 3D
+  ctx.clearRect(0, 0, cv.width, cv.height);
   if(state === 'loading') return;
   const p=M;
   ctx.save();ctx.beginPath();ctx.rect(-5,-5,W+10,H+10);wsP();sdP();
@@ -470,12 +546,13 @@ function loop(ts){
   const dt=Math.min(.033,(ts-last)/1000||0);last=ts;
   if(state!=='pause'&&state!=='garage'&&state!=='settings'&&state!=='loading')step(dt);
   
+  sfx.update();
   render3D();
   cockpit();
   hud();
   
-  if(state==='loading') overlay(loadProgress, ['Подождите...']);
-  else if(state==='menu') overlay('ШАШКИ В ПОТОКЕ 3D',['W / ↑ — газ     S / ↓ — тормоз','A / ← и D / → — руль','G — гараж · Монеты: '+coins+' · '+CAR.name,'Пробел или Enter — старт']);
+  if(state==='loading') overlay(loadProgress, ['Если висит долго — открой консоль (F12)']);
+  else if(state==='menu') overlay('ШАШКИ В ПОТОКЕ 3D',['W / ↑ — газ     S / ↓ — тормоз','A / ← и D / → — руль','M — звук · G — гараж · Монеты: '+coins+' · '+CAR.name,'Пробел или Enter — старт']);
   else if(state==='pause') overlay('ПАУЗА',['Пробел, Enter или P — продолжить']);
   else if(state==='over') overlay('АВАРИЯ',['Очки: '+score()+' · Дистанция: '+(P.z/1000).toFixed(2)+' км','Рекорд: '+best+' · Всего '+coins,'Пробел или Enter — заново · G — гараж']);
   else if(state==='garage') garage();
@@ -485,8 +562,7 @@ function loop(ts){
 
 // Заглушка, чтобы не падало до загрузки
 applyCar();
-P={x:0,vx:0,v:0,s:0,thr:0,brk:0,z:0,bonus:0,combo:0,comboT:0,roll:0,crash:0,rpm:900,gear:1,pk:0,pkv:0,sh:0,gt:0};
-cars = [];
+P={x:0,vx:0,v:0,s:0,thr:0,brk:0,z:0,bonus:0,combo:0,comboT:0,roll:0,crash:0,rpm:900,gear:1,pk:0,pkv:0,sh:0,gt:0,popCd:0,offGasT:0};
 requestAnimationFrame(loop);
 
 </script>
