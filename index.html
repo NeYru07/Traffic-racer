@@ -138,12 +138,13 @@ const sfx=(()=>{
       if(!ac||mute)return;
       const t = ac.currentTime, s = ac.createBufferSource(), f = ac.createBiquadFilter(), g = ac.createGain();
       s.buffer = NB; s.loop = true;
-      f.type = 'bandpass'; f.frequency.value = 120 + Math.random()*250; f.Q.value = 1.5;
+      f.type = 'bandpass'; f.frequency.value = 140 + Math.random()*200; f.Q.value = 1.1; // Сделали спектр чуть шире
       g.gain.setValueAtTime(.0001, t);
-      g.gain.exponentialRampToValueAtTime(1.5 + Math.random(), t + .01);
-      g.gain.exponentialRampToValueAtTime(.0001, t + .1 + Math.random()*.15);
-      s.connect(f); f.connect(g); g.connect(exhPan); // Идет строго сзади
-      s.start(t); s.stop(t + .3);
+      // Мощно задрали пиковую громкость отстрела (было 1.5, стало 4.0 - 6.0)
+      g.gain.exponentialRampToValueAtTime(4.0 + Math.random()*2.0, t + .01);
+      g.gain.exponentialRampToValueAtTime(.0001, t + .15 + Math.random()*.15);
+      s.connect(f); f.connect(g); g.connect(exhPan);
+      s.start(t); s.stop(t + .4);
     },
 
     update(){
@@ -154,7 +155,7 @@ const sfx=(()=>{
       for(const [s,r] of o)s.frequency.setTargetAtTime(f*r,t,.03);
       
       ef.frequency.setTargetAtTime(240+P.rpm*.22+thr*450,t,.05); // Фильтр выхлопа открывается при газе
-      eg.gain.setTargetAtTime(run?(.12+.16*thr+.04*P.rpm/7000)*(P.sh>0?.45:1):0,t,.04); // Громкость выхлопа
+      eg.gain.setTargetAtTime(run?(.28+.20*thr+.15*P.rpm/7000)*(P.sh>0?.45:1):0,t,.04); // Громкость выхлопа
       egFront.gain.setTargetAtTime(run?(.08+.05*thr+.03*P.rpm/7000):0,t,.04); // Громкость мотора спереди
       
       wf.frequency.setTargetAtTime(300+vn*1100,t,.1);wg.gain.setTargetAtTime(vn*vn*.2*(P.crash>0?.3:1),t,.1);
@@ -164,7 +165,7 @@ const sfx=(()=>{
   };
 })();
 function start(){applyCar();
-  P={x:LANES[2],vx:0,v:40/3.6,s:0,thr:0,brk:0,z:0,bonus:0,combo:0,comboT:0,roll:0,crash:0,rpm:900,gear:1,pk:0,pkv:0,sh:0,gt:0,popCd:0};
+  P={x:LANES[2],vx:0,v:40/3.6,s:0,thr:0,brk:0,z:0,bonus:0,combo:0,comboT:0,roll:0,crash:0,rpm:900,gear:1,pk:0,pkv:0,sh:0,gt:0,popCd:0,offGasT:0};
   cars=[];shake=0;flash=0;popT=0;state='play';
   for(let i=0;i<DENS[dens-1];i++)spawn(45+i*330/DENS[dens-1]);
 }
@@ -238,10 +239,15 @@ function step(dt){
   const tgt=Math.min(7300,Math.max(P.v*KG[P.gear-1],900+(P.gear===1?P.thr*2200:0)));
   P.rpm+=(tgt-P.rpm)*Math.min(1,dt*(tgt<P.rpm?14:22));
   // --- ЛОГИКА ОТСТРЕЛОВ ВЫХЛОПА ---
-  if(CAR.pops && P.thr < 0.1 && P.rpm > 4200 && P.crash === 0) {
-    if(P.popCd <= 0 && Math.random() < 0.25) { // 25% шанс выстрела в кадр при обнуленном КД
+  if (P.thr < 0.1) P.offGasT += dt;
+  else P.offGasT = 0;
+
+  // Отстрелы идут только если: 
+  // 1) Брошен газ, 2) Прошло меньше 1.5 секунд с момента бросания, 3) Обороты выше 3500
+  if(CAR.pops && P.thr < 0.1 && P.offGasT < 1.5 && P.rpm > 3500 && P.crash === 0) {
+    if(P.popCd <= 0 && Math.random() < 0.3) { 
       sfx.pop();
-      P.popCd = 0.08 + Math.random() * 0.2; // Случайная пауза между хлопками (80-280мс)
+      P.popCd = 0.08 + Math.random() * 0.15; // Пауза между хлопками
     }
   }
   P.popCd = Math.max(0, P.popCd - dt);
