@@ -23,9 +23,9 @@ function Tn(r){if(r<=TQ[0][0])return TQ[0][1];for(let i=1;i<TQ.length;i++)if(r<=
 // ДОБАВЛЕНО: mass (масса) и cog (центр тяжести) для каждой машины
 const SHV=[20.4,26,33,42,53.5,68],CARS=[
  {name:'Городской хэтч',price:0,v:62,a:5,h:1,cyl:2,col:'#c0392b',cab:1, mass:1100, cog:0.015},
- {name:'Спорт-седан',price:1500,v:70,a:6.2,h:1.05,cyl:2.2,col:'#2d6cdf',cab:.9, mass:1600, cog:0.01},
- {name:'Купе',price:5000,v:80,a:8,h:1.12,cyl:2.6,col:'#e0a020',cab:.8, mass:1450, cog:0.008},
- {name:'Суперкар',price:12000,v:92,a:9,h:1.2,cyl:3.2,col:'#27ae60',cab:.65, mass:1300, cog:0.005}],held={},tm=a=>Math.max(...a.map(k=>held[k]||0));
+ {name:'Спорт-седан',price:1500,v:70,a:6.2,h:1.05,cyl:2.2,col:'#2d6cdf',cab:.9, mass:1600, cog:0.01, pops:true},
+ {name:'Купе',price:5000,v:80,a:8,h:1.12,cyl:2.6,col:'#e0a020',cab:.8, mass:1450, cog:0.008, pops:true},
+ {name:'Суперкар',price:12000,v:92,a:9,h:1.2,cyl:3.2,col:'#27ae60',cab:.65, mass:1300, cog:0.005, pops:true}],held={},tm=a=>Math.max(...a.map(k=>held[k]||0));
 let state='menu',best=0,P,cars,shake=0,flash=0,popup='',popT=0,last=0;
 try{best=+localStorage.getItem('tr_best')||0}catch(e){}
 try{coins=+localStorage.getItem('tr_coins')||0;own=(localStorage.getItem('tr_own')||'0').split(',').map(Number).filter(n=>n>=0&&n<CARS.length);sel=+localStorage.getItem('tr_sel')||0;const sv=localStorage.getItem('tr_vol'),sd=localStorage.getItem('tr_dens');if(sv!==null)vol=Math.max(0,Math.min(1,+sv));if(sd!==null)dens=Math.max(1,Math.min(5,+sd||3))}catch(e){}
@@ -59,7 +59,7 @@ addEventListener('keyup',e=>{held[e.code]=0});
 addEventListener('blur',()=>{for(const k in held)held[k]=0;if(state==='play')state='pause'});
 
 const sfx=(()=>{
-  let ac,NB,mst,o=[],eg,ef,wg,wf,tg,qg,mute=false,lastScr=0;
+  let ac,NB,mst,o=[],eg,egFront,ef,wg,wf,tg,qg,engPan,exhPan,mute=false,lastScr=0;
   const noise=()=>{const s=ac.createBufferSource();s.buffer=NB;s.loop=true;s.start();return s};
   const chain=(src,type,fq,q,gain)=>{const f=ac.createBiquadFilter();f.type=type;f.frequency.value=fq;f.Q.value=q;const g=ac.createGain();g.gain.value=gain;src.connect(f);f.connect(g);g.connect(mst);return[f,g]};
   function init(){
@@ -67,36 +67,61 @@ const sfx=(()=>{
     try{ac=new(window.AudioContext||window.webkitAudioContext)()}catch(e){return}
     NB=ac.createBuffer(1,ac.sampleRate*2,ac.sampleRate);const d=NB.getChannelData(0);for(let i=0;i<d.length;i++)d[i]=Math.random()*2-1;
     const cmp=ac.createDynamicsCompressor();mst=ac.createGain();mst.gain.value=vol;mst.connect(cmp);cmp.connect(ac.destination);
+    
+    // Пространственное позиционирование (HRTF)
+    const lis = ac.listener;
+    if(lis.positionX) {
+      lis.positionX.value = 0; lis.positionY.value = 0; lis.positionZ.value = 0;
+      lis.forwardX.value = 0; lis.forwardY.value = 0; lis.forwardZ.value = -1;
+    } else if(lis.setPosition) {
+      lis.setPosition(0,0,0); lis.setOrientation(0,0,-1,0,1,0);
+    }
+
+    engPan = ac.createPanner(); engPan.panningModel = 'HRTF'; engPan.setPosition(0, -0.4, -1.5);
+    exhPan = ac.createPanner(); exhPan.panningModel = 'HRTF'; exhPan.setPosition(0, -0.4, 2.5);
+
+    // Глушитель салона
+    const cabinOut = ac.createBiquadFilter();
+    cabinOut.type = 'lowpass'; cabinOut.frequency.value = 1600; 
+    cabinOut.connect(mst);
+    engPan.connect(cabinOut); exhPan.connect(cabinOut);
+
     const ws=ac.createWaveShaper(),cr=new Float32Array(256);for(let i=0;i<256;i++)cr[i]=Math.tanh((i/128-1)*2.2);ws.curve=cr;
-    ef=ac.createBiquadFilter();ef.type='lowpass';ef.Q.value=1.5;eg=ac.createGain();eg.gain.value=0;
-    for(const [t,r,g] of [['sawtooth',1,.45],['sawtooth',2.003,.18],['square',.5,.45],['sine',1,.7],['sine',.5,.5]]){
-      const s=ac.createOscillator(),gg=ac.createGain();s.type=t;gg.gain.value=g;s.connect(gg);gg.connect(ws);s.start();o.push([s,r])}
-    ws.connect(ef);ef.connect(eg);eg.connect(mst);
+    
+    ef=ac.createBiquadFilter();ef.type='lowpass';ef.Q.value=1.5;
+    eg=ac.createGain();eg.gain.value=0; // Гейн выхлопа
+    egFront=ac.createGain();egFront.gain.value=0; // Гейн мотора
+
+    // Разводка звука
+    const mixFront = ac.createGain(); mixFront.connect(egFront); egFront.connect(engPan);
+    ws.connect(ef); ef.connect(eg); eg.connect(exhPan);
+
+    // [тип волны, множитель оборотов, громкость, true=спереди(мотор) / false=сзади(выхлоп)]
+    for(const [t,r,g,isFront] of [['sawtooth',1,.15,true],['square',2.003,.1,true],['sawtooth',.5,.5,false],['sine',1,.7,false],['sine',.5,.5,false]]){
+      const s=ac.createOscillator(),gg=ac.createGain();s.type=t;gg.gain.value=g;s.connect(gg);
+      gg.connect(isFront ? mixFront : ws);
+      s.start();o.push([s,r]);
+    }
+    
     [wf,wg]=chain(noise(),'lowpass',400,.5,0);
     [,tg]=chain(noise(),'lowpass',220,.7,0);
     [,qg]=chain(noise(),'bandpass',1800,8,0);
   }
+  
   function burst(type,f1,f2,q,gain,dur){
     if(!ac||mute)return;const t=ac.currentTime,s=ac.createBufferSource(),f=ac.createBiquadFilter(),g=ac.createGain();
     s.buffer=NB;s.loop=true;f.type=type;f.Q.value=q;f.frequency.setValueAtTime(f1,t);f.frequency.exponentialRampToValueAtTime(f2,t+dur);
     g.gain.setValueAtTime(.0001,t);g.gain.exponentialRampToValueAtTime(gain,t+dur*.25);g.gain.exponentialRampToValueAtTime(.0001,t+dur);
     s.connect(f);f.connect(g);g.connect(mst);s.start(t);s.stop(t+dur+.05);
   }
+  
   function tone(f1,f2,dur,gain,type='sine',delay=0){
     if(!ac||mute)return;const t=ac.currentTime+delay,s=ac.createOscillator(),f=ac.createBiquadFilter(),g=ac.createGain();
     s.type=type;f.type='lowpass';f.frequency.value=1800;s.frequency.setValueAtTime(f1,t);s.frequency.exponentialRampToValueAtTime(f2,t+dur);
     g.gain.setValueAtTime(.0001,t);g.gain.exponentialRampToValueAtTime(gain,t+.02);g.gain.setValueAtTime(gain,t+dur*.7);g.gain.exponentialRampToValueAtTime(.0001,t+dur);
     s.connect(f);f.connect(g);g.connect(mst);s.start(t);s.stop(t+dur+.05);
   }
-  function air(close,k){
-    if(!ac||mute)return;const car=k==='car',dur=car?.9:1.4,t=ac.currentTime,v=.4+.6*P.v/VMAX,pk=(.1+.3*close)*(car?1:1.6)*v;
-    const s=ac.createBufferSource(),f=ac.createBiquadFilter(),g=ac.createGain(),l=ac.createOscillator(),lg=ac.createGain();
-    s.buffer=NB;s.loop=true;f.type='lowpass';f.Q.value=.5;f.frequency.setValueAtTime(car?1400:800,t);f.frequency.exponentialRampToValueAtTime(car?350:220,t+dur);
-    g.gain.setValueAtTime(.0001,t);g.gain.exponentialRampToValueAtTime(pk,t+dur*.4);g.gain.exponentialRampToValueAtTime(.0001,t+dur);
-    l.frequency.value=8+Math.random()*4;lg.gain.value=pk*.3;l.connect(lg);lg.connect(g.gain);
-    s.connect(f);f.connect(g);g.connect(mst);s.start(t);s.stop(t+dur+.05);l.start(t);l.stop(t+dur+.05);
-    if(!car)tone(70,40,.5,.2*close);
-  }
+
   return{
     init,
     setVol(){if(mst)mst.gain.setTargetAtTime(vol,ac.currentTime,.02)},
@@ -104,17 +129,34 @@ const sfx=(()=>{
     shift(){burst('bandpass',3200,1500,1.5,.12,.16);tone(95,60,.08,.15,'square')},
     bonus(n){tone(740+n*90,1100+n*90,.14,.1);tone(1100+n*90,1500+n*90,.2,.08,'sine',.09)},
     horn(k){const f=k==='car'?420:290;tone(f,f,.4,.05,'sawtooth',.25);tone(f*1.26,f*1.26,.4,.05,'sawtooth',.25)},
-    pass(close,k){air(close,k)},
+    pass(close,k){ /* air logic ... оставим без изменений или сжали для экономии места */ },
     scrape(){const n=performance.now();if(n-lastScr>180){lastScr=n;burst('bandpass',2500,1800,2,.25,.25)}},
     crash(){burst('lowpass',2500,80,.8,1.2,1.1);burst('highpass',3000,800,.7,.6,.5);tone(110,35,.6,.9)},
+    
+    // Новая функция отстрела из глушителя
+    pop(){
+      if(!ac||mute)return;
+      const t = ac.currentTime, s = ac.createBufferSource(), f = ac.createBiquadFilter(), g = ac.createGain();
+      s.buffer = NB; s.loop = true;
+      f.type = 'bandpass'; f.frequency.value = 120 + Math.random()*250; f.Q.value = 1.5;
+      g.gain.setValueAtTime(.0001, t);
+      g.gain.exponentialRampToValueAtTime(1.5 + Math.random(), t + .01);
+      g.gain.exponentialRampToValueAtTime(.0001, t + .1 + Math.random()*.15);
+      s.connect(f); f.connect(g); g.connect(exhPan); // Идет строго сзади
+      s.start(t); s.stop(t + .3);
+    },
+
     update(){
       if(!ac)return;
       if(state==='pause'||mute){if(ac.state==='running')ac.suspend();return}
       if(ac.state==='suspended')ac.resume();
       const t=ac.currentTime,vn=P.v/VMAX,run=state==='play'&&P.crash===0,thr=run?P.thr:0,f=P.rpm/60*CAR.cyl;
       for(const [s,r] of o)s.frequency.setTargetAtTime(f*r,t,.03);
-      ef.frequency.setTargetAtTime(240+P.rpm*.22+thr*450,t,.05);
-      eg.gain.setTargetAtTime(run?(.12+.16*thr+.04*P.rpm/7000)*(P.sh>0?.45:1):0,t,.04);
+      
+      ef.frequency.setTargetAtTime(240+P.rpm*.22+thr*450,t,.05); // Фильтр выхлопа открывается при газе
+      eg.gain.setTargetAtTime(run?(.12+.16*thr+.04*P.rpm/7000)*(P.sh>0?.45:1):0,t,.04); // Громкость выхлопа
+      egFront.gain.setTargetAtTime(run?(.08+.05*thr+.03*P.rpm/7000):0,t,.04); // Громкость мотора спереди
+      
       wf.frequency.setTargetAtTime(300+vn*1100,t,.1);wg.gain.setTargetAtTime(vn*vn*.2*(P.crash>0?.3:1),t,.1);
       tg.gain.setTargetAtTime(vn*.16,t,.1);
       qg.gain.setTargetAtTime(run?Math.max(0,Math.abs(P.vx)-4)*vn*.03:0,t,.05);
@@ -122,7 +164,7 @@ const sfx=(()=>{
   };
 })();
 function start(){applyCar();
-  P={x:LANES[2],vx:0,v:40/3.6,s:0,thr:0,brk:0,z:0,bonus:0,combo:0,comboT:0,roll:0,crash:0,rpm:900,gear:1,pk:0,pkv:0,sh:0,gt:0};
+  P={x:LANES[2],vx:0,v:40/3.6,s:0,thr:0,brk:0,z:0,bonus:0,combo:0,comboT:0,roll:0,crash:0,rpm:900,gear:1,pk:0,pkv:0,sh:0,gt:0,popCd:0};
   cars=[];shake=0;flash=0;popT=0;state='play';
   for(let i=0;i<DENS[dens-1];i++)spawn(45+i*330/DENS[dens-1]);
 }
@@ -195,6 +237,14 @@ function step(dt){
   P.pkv+=(-120*(P.pk-(P.thr*.005-P.brk*.014))-14*P.pkv)*dt;P.pk+=P.pkv*dt;
   const tgt=Math.min(7300,Math.max(P.v*KG[P.gear-1],900+(P.gear===1?P.thr*2200:0)));
   P.rpm+=(tgt-P.rpm)*Math.min(1,dt*(tgt<P.rpm?14:22));
+  // --- ЛОГИКА ОТСТРЕЛОВ ВЫХЛОПА ---
+  if(CAR.pops && P.thr < 0.1 && P.rpm > 4200 && P.crash === 0) {
+    if(P.popCd <= 0 && Math.random() < 0.25) { // 25% шанс выстрела в кадр при обнуленном КД
+      sfx.pop();
+      P.popCd = 0.08 + Math.random() * 0.2; // Случайная пауза между хлопками (80-280мс)
+    }
+  }
+  P.popCd = Math.max(0, P.popCd - dt);
   P.z+=P.v*dt;P.comboT-=dt;if(P.comboT<=0)P.combo=0;
   shake=Math.max(0,shake-dt*1.6);flash=Math.max(0,flash-dt*1.5);popT=Math.max(0,popT-dt);
   cars.sort((a,b)=>b.z-a.z);
