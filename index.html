@@ -175,7 +175,7 @@ function step(dt){
     P.x += P.vx * dt;
 
     // 5. Крен кузова (зависит от центра тяжести и бокового ускорения)
-    P.roll += (-P.vx * CAR.cog - P.roll) * Math.min(1, 12 * dt);
+    P.roll += (-P.vx * CAR.cog * 0.15 - P.roll) * Math.min(1, 12 * dt);
     // ------------------------------------------------
 
     const lim=HALF-.95;
