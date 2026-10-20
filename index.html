@@ -100,7 +100,6 @@ const models3D = {
 let modelsLoaded = false;
 let loadProgress = 'Загрузка 3D моделей...';
 
-// Функция загрузки и "вытаскивания" нужных деталей из паков
 const loader = new GLTFLoader();
 
 function extractCar(gltf, bodyKeyword, wheelKeyword, scale = 0.01) {
@@ -109,39 +108,44 @@ function extractCar(gltf, bodyKeyword, wheelKeyword, scale = 0.01) {
     if (child.isMesh) {
       if (child.name.includes(bodyKeyword) || child.name.includes(wheelKeyword)) {
         const clone = child.clone();
-        clone.position.set(0,0,0); // Сбрасываем смещение из пака
+        clone.position.set(0,0,0);
         group.add(clone);
       }
     }
   });
   group.scale.set(scale, scale, scale);
-  // Машины часто смотрят вбок или назад при импорте, корректируем:
   group.rotation.y = Math.PI; 
   return group;
 }
 
-// Загружаем пак трафика 1
-loader.load('models/generic_passenger_car_pack.glb', (gltf) => {
+// Функция для вывода ошибки на экран
+function onError(err) {
+  console.error("Ошибка загрузки модели:", err);
+  loadProgress = "Ошибка загрузки! Открой консоль (F12)";
+}
+
+// Загружаем пак трафика 1 (обрати внимание, добавил ./ перед models)
+loader.load('./models/generic_passenger_car_pack.glb', (gltf) => {
   models3D.sedan = extractCar(gltf, 'Sedan', 'Wheel_A', 0.012);
   models3D.hatch = extractCar(gltf, 'Hatchback', 'Wheel_B', 0.012);
   checkLoad();
-});
+}, undefined, onError);
 
 // Загружаем пак трафика 2
-loader.load('models/low_poly_vehicle_mini_pack_3.glb', (gltf) => {
+loader.load('./models/low_poly_vehicle_mini_pack_3.glb', (gltf) => {
   models3D.bus = extractCar(gltf, 'city_bus', 'city_bus', 0.015);
-  models3D.truck = extractCar(gltf, 'bus_long', 'bus_long', 0.015); // Используем длинный автобус как "грузовик" пока нет газели
+  models3D.truck = extractCar(gltf, 'bus_long', 'bus_long', 0.015);
   checkLoad();
-});
+}, undefined, onError);
 
 // Загружаем машину игрока
-loader.load('models/lct_3000_95_-_low_poly_model.glb', (gltf) => {
+loader.load('./models/lct_3000_95_-_low_poly_model.glb', (gltf) => {
   const car = gltf.scene;
   car.scale.set(0.01, 0.01, 0.01);
   car.rotation.y = Math.PI;
   models3D.player = car;
   checkLoad();
-});
+}, undefined, onError);
 
 let loadedCount = 0;
 function checkLoad() {
