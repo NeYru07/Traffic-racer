@@ -3,22 +3,18 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Шашки в потоке — 3D</title>
+<title>Шашки в потоке — Voxel 3D</title>
 <style>
   :root { box-sizing: border-box; padding-top: env(safe-area-inset-top,0px); padding-bottom: env(safe-area-inset-bottom,0px); color-scheme: dark; }
   html, body { height: 100%; margin: 0; background: #0b0d12; overflow: hidden; }
-  /* Контейнер для двух слоев */
   #game-container { position: relative; width: 100%; height: 100%; }
-  /* 3D слой на заднем плане */
   #webgl-canvas { display: block; position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 1; }
-  /* 2D слой с прозрачным фоном поверх 3D */
   #c { display: block; position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 2; pointer-events: none; }
 </style>
 <script type="importmap">
   {
     "imports": {
-      "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
-      "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+      "three": "https://unpkg.com/three@0.160.0/build/three.module.js"
     }
   }
 </script>
@@ -32,44 +28,57 @@
 
 <script type="module">
 import * as THREE from 'three';
-import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 
 const cv = document.getElementById('c'), ctx = cv.getContext('2d');
 const webglCanvas = document.getElementById('webgl-canvas');
-
 let W, H, S=1;
 
-// --- НАСТРОЙКА THREE.JS ---
+// --- НАСТРОЙКА THREE.JS И СВЕТА ---
 const scene3D = new THREE.Scene();
-scene3D.background = new THREE.Color('#c06c84'); // Цвет неба
-scene3D.fog = new THREE.FogExp2('#c06c84', 0.008); // Туман
+scene3D.background = new THREE.Color('#e08b79'); // Закатное небо
+scene3D.fog = new THREE.FogExp2('#e08b79', 0.007);
 
 const camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.1, 500);
 const renderer = new THREE.WebGLRenderer({ canvas: webglCanvas, antialias: true });
 renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
-const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+const ambientLight = new THREE.AmbientLight(0xffffff, 0.45);
 scene3D.add(ambientLight);
-const dirLight = new THREE.DirectionalLight(0xffe14d, 1.5);
-dirLight.position.set(50, 100, -50);
+
+const dirLight = new THREE.DirectionalLight(0xffe14d, 1.2);
+dirLight.position.set(50, 80, -30);
+dirLight.castShadow = true;
+dirLight.shadow.camera.left = -30;
+dirLight.shadow.camera.right = 30;
+dirLight.shadow.camera.top = 100;
+dirLight.shadow.camera.bottom = -20;
+dirLight.shadow.camera.far = 200;
 scene3D.add(dirLight);
 
-// Дорога
+// Дорога и окружение
 const roadGeo = new THREE.PlaneGeometry(24, 1000);
-const roadMat = new THREE.MeshStandardMaterial({ color: 0x3a3d45, roughness: 0.8 });
+const roadMat = new THREE.MeshStandardMaterial({ color: 0x3a3d45, roughness: 0.9 });
 const road = new THREE.Mesh(roadGeo, roadMat);
 road.rotation.x = -Math.PI / 2;
-road.position.y = 0;
+road.receiveShadow = true;
 scene3D.add(road);
 
-// Трава
+// Разметка (центральная двойная сплошная)
+const lineGeo = new THREE.PlaneGeometry(0.2, 1000);
+const lineMat = new THREE.MeshBasicMaterial({ color: 0xe8e8e8 });
+const line = new THREE.Mesh(lineGeo, lineMat);
+line.rotation.x = -Math.PI / 2;
+line.position.y = 0.02;
+scene3D.add(line);
+
 const grassGeo = new THREE.PlaneGeometry(200, 1000);
 const grassMat = new THREE.MeshStandardMaterial({ color: 0x355e3b, roughness: 1 });
 const grassL = new THREE.Mesh(grassGeo, grassMat);
-grassL.rotation.x = -Math.PI / 2; grassL.position.set(-112, -0.1, 0);
+grassL.rotation.x = -Math.PI / 2; grassL.position.set(-112, -0.1, 0); grassL.receiveShadow = true;
 scene3D.add(grassL);
 const grassR = new THREE.Mesh(grassGeo, grassMat);
-grassR.rotation.x = -Math.PI / 2; grassR.position.set(112, -0.1, 0);
+grassR.rotation.x = -Math.PI / 2; grassR.position.set(112, -0.1, 0); grassR.receiveShadow = true;
 scene3D.add(grassR);
 
 function rs() {
@@ -86,71 +95,57 @@ function rs() {
 }
 window.addEventListener('resize', rs); rs();
 
-// --- ЗАГРУЗКА 3D МОДЕЛЕЙ ---
-const models3D = {
-  player: new THREE.Group(),
-  sedan: new THREE.Group(),
-  hatch: new THREE.Group(),
-  bus: new THREE.Group(),
-  truck: new THREE.Group()
-};
-
-let modelsLoaded = false;
-let loadProgress = 'Загрузка 3D моделей...';
-
-const loader = new GLTFLoader();
-
-function extractCar(gltf, bodyKeyword, wheelKeyword, scale = 0.01) {
+// --- ПРОЦЕДУРНАЯ ГЕНЕРАЦИЯ 3D МАШИН (Voxel Style) ---
+function createVehicleMesh(k, T, hue, sat, lig) {
   const group = new THREE.Group();
-  gltf.scene.traverse((child) => {
-    if (child.isMesh) {
-      if (child.name.includes(bodyKeyword) || child.name.includes(wheelKeyword)) {
-        const clone = child.clone();
-        clone.position.set(0,0,0);
-        group.add(clone);
-      }
-    }
-  });
-  group.scale.set(scale, scale, scale);
-  group.rotation.y = Math.PI; 
+  
+  // Материалы
+  const bodyColor = new THREE.Color(`hsl(${hue}, ${sat}%, ${lig}%)`);
+  const matBody = new THREE.MeshStandardMaterial({ color: bodyColor, roughness: 0.4, metalness: 0.1 });
+  const matGlass = new THREE.MeshStandardMaterial({ color: 0x11161c, roughness: 0.1, metalness: 0.8 });
+  const matBlack = new THREE.MeshStandardMaterial({ color: 0x101010, roughness: 0.9 });
+  const matRed = new THREE.MeshBasicMaterial({ color: 0xff1111 }); // Светятся сами
+  const matWhite = new THREE.MeshBasicMaterial({ color: 0xffffee });
+
+  const w = T.w, h = T.h, L = T.L;
+  const cl = 0.35; // Клиренс (высота подвески)
+
+  // Вспомогательная функция для добавления кубиков (центр Z отсчитывается от заднего бампера вглубь)
+  const addBox = (width, height, depth, x, y, z, mat) => {
+    const mesh = new THREE.Mesh(new THREE.BoxGeometry(width, height, depth), mat);
+    mesh.position.set(x, y + height/2, -z); // -z потому что едем вперед по оси -Z
+    mesh.castShadow = true;
+    mesh.receiveShadow = true;
+    group.add(mesh);
+  };
+
+  if (k === 'car') {
+    addBox(w, h*0.4, L, 0, cl, L/2, matBody); // Основа
+    addBox(w*0.8, h*0.5, L*0.5, 0, cl+h*0.4, L*0.6, matGlass); // Кабина
+    addBox(w*0.82, 0.05, L*0.48, 0, cl+h*0.9, L*0.6, matBody); // Крыша
+  } else if (k === 'truck') {
+    addBox(w*0.9, h*0.4, L*0.2, 0, cl, L*0.85, matBody); // Кабина низ
+    addBox(w*0.9, h*0.5, L*0.2, 0, cl+h*0.4, L*0.85, matGlass); // Кабина стекла
+    addBox(w, h-cl, L*0.75, 0, cl, L*0.375, matBody); // Кузов/будка
+  } else if (k === 'bus') {
+    addBox(w, h-cl, L, 0, cl, L/2, matBody); // Основа автобуса
+    addBox(w*1.02, h*0.4, L*0.8, 0, cl+h*0.3, L/2, matGlass); // Окна сплошной полосой
+  }
+
+  // Колеса (простые черные кубы)
+  const r = k === 'car' ? 0.35 : 0.55;
+  const aw = w + 0.1;
+  const ax = k === 'car' ? [L*0.2, L*0.8] : (k==='truck' ? [L*0.15, L*0.5, L*0.85] : [L*0.2, L*0.8]);
+  ax.forEach(z => addBox(aw, r*2, r*2, 0, 0, z, matBlack));
+
+  // Фары
+  addBox(w*0.8, 0.2, 0.1, 0, cl+0.2, 0.05, matRed); // Задние (стоп-сигналы)
+  addBox(w*0.8, 0.2, 0.1, 0, cl+0.2, L-0.05, matWhite); // Передние
+
   return group;
 }
 
-function onError(err) {
-  console.error("Ошибка загрузки модели:", err);
-  loadProgress = "Ошибка загрузки! Открой консоль (F12)";
-}
-
-loader.load('./models/generic_passenger_car_pack.glb', (gltf) => {
-  models3D.sedan = extractCar(gltf, 'Sedan', 'Wheel_A', 0.012);
-  models3D.hatch = extractCar(gltf, 'Hatchback', 'Wheel_B', 0.012);
-  checkLoad();
-}, undefined, onError);
-
-loader.load('./models/low_poly_vehicle_mini_pack_3.glb', (gltf) => {
-  models3D.bus = extractCar(gltf, 'city_bus', 'city_bus', 0.015);
-  models3D.truck = extractCar(gltf, 'bus_long', 'bus_long', 0.015); 
-  checkLoad();
-}, undefined, onError);
-
-loader.load('./models/lct_3000_95_-_low_poly_model.glb', (gltf) => {
-  const car = gltf.scene;
-  car.scale.set(0.01, 0.01, 0.01);
-  car.rotation.y = Math.PI;
-  models3D.player = car;
-  checkLoad();
-}, undefined, onError);
-
-let loadedCount = 0;
-function checkLoad() {
-  loadedCount++;
-  if(loadedCount >= 3) {
-    modelsLoaded = true;
-    state = 'menu';
-  }
-}
-
-// --- ФИЗИКА И ЛОГИКА ---
+// --- ИГРОВАЯ ЛОГИКА ---
 const LW=3.6, HALF=LW*2, LANES=[-5.4, -1.8, 1.8, 5.4], FAR=380, CH=1.15;
 const TYPES={car:{w:1.8,h:1.45,L:4.4,v:[22,32]},truck:{w:2.5,h:3.6,L:10,v:[15,20]},bus:{w:2.55,h:3.2,L:12,v:[17,23]}};
 const K={L:['ArrowLeft','KeyA'],R:['ArrowRight','KeyD'],U:['ArrowUp','KeyW'],D:['ArrowDown','KeyS']};
@@ -166,8 +161,7 @@ const SHV=[20.4,26,33,42,53.5,68],CARS=[
  {name:'Суперкар',price:12000,v:92,a:9,h:1.2,cyl:3.2,col:'#27ae60',cab:.65, mass:1300, cog:0.005, pops:true}];
  
 let held={},tm=a=>Math.max(...a.map(k=>held[k]||0));
-// ИСПРАВЛЕНИЕ ОШИБКИ ЗДЕСЬ: cars инициализирован как пустой массив
-let state='loading',best=0,P,cars=[],shake=0,flash=0,popup='',popT=0,last=0;
+let state='menu',best=0,P,cars=[],shake=0,flash=0,popup='',popT=0,last=0;
 
 try{best=+localStorage.getItem('tr_best')||0;coins=+localStorage.getItem('tr_coins')||0;own=(localStorage.getItem('tr_own')||'0').split(',').map(Number).filter(n=>n>=0&&n<CARS.length);sel=+localStorage.getItem('tr_sel')||0;const sv=localStorage.getItem('tr_vol'),sd=localStorage.getItem('tr_dens');if(sv!==null)vol=Math.max(0,Math.min(1,+sv));if(sd!==null)dens=Math.max(1,Math.min(5,+sd||3))}catch(e){}
 if(!own.includes(sel))sel=0;
@@ -271,7 +265,6 @@ function garageKey(c){
 }
 
 window.addEventListener('keydown',e=>{
-  if(!modelsLoaded) return;
   if(['ArrowLeft','ArrowRight','ArrowUp','ArrowDown','Space'].includes(e.code))e.preventDefault();
   if(e.repeat)return;
   held[e.code]=performance.now();
@@ -302,12 +295,12 @@ function spawn(zr){
     let ahead=null;for(const o of cars)if(o.ln===ln&&o.z>z&&(!ahead||o.z<ahead.z))ahead=o;
     const vv=ahead&&ahead.z-z<80?Math.min(vv0,ahead.v):vv0;
     
-    let meshTemplate = models3D.sedan;
-    if (k === 'car' && Math.random() > 0.5) meshTemplate = models3D.hatch;
-    if (k === 'bus') meshTemplate = models3D.bus;
-    if (k === 'truck') meshTemplate = models3D.truck;
+    // Генерируем 3D-модель
+    const hue = car ? Math.random()*360|0 : [210,25,0,140,50][Math.random()*5|0];
+    const sat = car ? 55+Math.random()*30 : 40;
+    const lig = car ? 35+Math.random()*25 : (k==='bus' ? 50 : 55+Math.random()*15);
     
-    const mesh = meshTemplate.clone();
+    const mesh = createVehicleMesh(k, T, hue, sat, lig);
     scene3D.add(mesh);
 
     cars.push({k,T,ln,x:LANES[ln],z,v0:vv0,v:vv,home:ln,cd:0, gap:9, passed:false, nt:4+Math.random()*8, mesh});
@@ -360,7 +353,6 @@ function step(dt){
   const tgt=Math.min(7300,Math.max(P.v*KG[P.gear-1],900+(P.gear===1?P.thr*2200:0)));
   P.rpm+=(tgt-P.rpm)*Math.min(1,dt*(tgt<P.rpm?14:22));
   
-  // Отстрелы выхлопа
   if (P.thr < 0.1) P.offGasT += dt; else P.offGasT = 0;
   if(CAR.pops && P.thr < 0.1 && P.offGasT < 1.5 && P.rpm > 3500 && P.crash === 0) {
     if(P.popCd <= 0 && Math.random() < 0.3) { sfx.pop(); P.popCd = 0.08 + Math.random() * 0.15; }
@@ -439,7 +431,7 @@ function ai(c,dt){
 }
 
 function render3D() {
-  if (!modelsLoaded || !P) return;
+  if (!P) return;
   let sx=0, sy=0;
   if(shake>0){ sx=(Math.random()-.5)*shake*0.5; sy=(Math.random()-.5)*shake*0.5; }
   
@@ -447,9 +439,13 @@ function render3D() {
   camera.rotation.z = -P.roll;
   camera.rotation.y = -P.s * 0.05;
   
+  // Дорога и свет двигаются за игроком
   road.position.z = -P.z - 500;
   grassL.position.z = -P.z - 500;
   grassR.position.z = -P.z - 500;
+  dirLight.position.set(P.x + 50, 80, -P.z - 30);
+  dirLight.target.position.set(P.x, 0, -P.z);
+  dirLight.target.updateMatrixWorld();
 
   for(const c of cars){
     if(c.mesh) {
@@ -480,7 +476,6 @@ function dial(x,y,r,v,max,step,lab,red){
 }
 function cockpit(){
   ctx.clearRect(0, 0, cv.width, cv.height);
-  if(state === 'loading') return;
   const p=M;
   ctx.save();ctx.beginPath();ctx.rect(-5,-5,W+10,H+10);wsP();sdP();
   let g=ctx.createLinearGradient(0,0,0,H);g.addColorStop(0,'#040405');g.addColorStop(.6,'#0e0f12');g.addColorStop(1,'#07080a');
@@ -518,7 +513,7 @@ function cockpit(){
 
 function text(t,x,y,size,col,al='center',w='700'){ctx.font=`${w} ${size}px system-ui,'Segoe UI',sans-serif`;ctx.textAlign=al;ctx.fillStyle=col;ctx.fillText(t,x,y)}
 function hud(){
-  if(state==='menu'||state==='garage'||state==='settings'||state==='loading')return;
+  if(state==='menu'||state==='garage'||state==='settings')return;
   const u=Math.max(14,Math.min(W,H)*.03);
   text('ОЧКИ '+score(),W-20,u*1.6,u*1.3,'#fff','right');
   text('Дистанция '+(P.z/1000).toFixed(2)+' км · Рекорд '+best,W-20,u*2.9,u*.9,'#ffd9a0','right','500');
@@ -544,15 +539,14 @@ function garage(){
 
 function loop(ts){
   const dt=Math.min(.033,(ts-last)/1000||0);last=ts;
-  if(state!=='pause'&&state!=='garage'&&state!=='settings'&&state!=='loading')step(dt);
+  if(state!=='pause'&&state!=='garage'&&state!=='settings')step(dt);
   
   sfx.update();
   render3D();
   cockpit();
   hud();
   
-  if(state==='loading') overlay(loadProgress, ['Если висит долго — открой консоль (F12)']);
-  else if(state==='menu') overlay('ШАШКИ В ПОТОКЕ 3D',['W / ↑ — газ     S / ↓ — тормоз','A / ← и D / → — руль','M — звук · G — гараж · Монеты: '+coins+' · '+CAR.name,'Пробел или Enter — старт']);
+  if(state==='menu') overlay('ШАШКИ В ПОТОКЕ 3D',['W / ↑ — газ     S / ↓ — тормоз','A / ← и D / → — руль','M — звук · G — гараж · Монеты: '+coins+' · '+CAR.name,'Пробел или Enter — старт']);
   else if(state==='pause') overlay('ПАУЗА',['Пробел, Enter или P — продолжить']);
   else if(state==='over') overlay('АВАРИЯ',['Очки: '+score()+' · Дистанция: '+(P.z/1000).toFixed(2)+' км','Рекорд: '+best+' · Всего '+coins,'Пробел или Enter — заново · G — гараж']);
   else if(state==='garage') garage();
@@ -560,9 +554,10 @@ function loop(ts){
   requestAnimationFrame(loop);
 }
 
-// Заглушка, чтобы не падало до загрузки
+// Заглушка (массив cars ИНИЦИАЛИЗИРОВАН СРАЗУ)
 applyCar();
 P={x:0,vx:0,v:0,s:0,thr:0,brk:0,z:0,bonus:0,combo:0,comboT:0,roll:0,crash:0,rpm:900,gear:1,pk:0,pkv:0,sh:0,gt:0,popCd:0,offGasT:0};
+cars = []; 
 requestAnimationFrame(loop);
 
 </script>
