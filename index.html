@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Шашки в потоке — Voxel 3D</title>
+<title>Шашки в потоке — Voxel 3D Pro</title>
 <style>
   :root { box-sizing: border-box; padding-top: env(safe-area-inset-top,0px); padding-bottom: env(safe-area-inset-bottom,0px); color-scheme: dark; }
   html, body { height: 100%; margin: 0; background: #0b0d12; overflow: hidden; }
@@ -33,52 +33,85 @@ const cv = document.getElementById('c'), ctx = cv.getContext('2d');
 const webglCanvas = document.getElementById('webgl-canvas');
 let W, H, S=1;
 
-// --- НАСТРОЙКА THREE.JS И СВЕТА ---
+// --- НАСТРОЙКА THREE.JS ---
 const scene3D = new THREE.Scene();
-scene3D.background = new THREE.Color('#e08b79'); // Закатное небо
-scene3D.fog = new THREE.FogExp2('#e08b79', 0.007);
+
+// Генератор градиентного неба
+const skyCanvas = document.createElement('canvas');
+skyCanvas.width = 2; skyCanvas.height = 512;
+const skyCtx = skyCanvas.getContext('2d');
+const skyGrd = skyCtx.createLinearGradient(0, 0, 0, 512);
+skyGrd.addColorStop(0, '#1f2e45'); // Темно-синий верх
+skyGrd.addColorStop(0.5, '#c06c84'); // Закат в центре
+skyGrd.addColorStop(1, '#ffb88c'); // Яркий горизонт
+skyCtx.fillStyle = skyGrd; skyCtx.fillRect(0, 0, 2, 512);
+
+const skyTex = new THREE.CanvasTexture(skyCanvas);
+skyTex.colorSpace = THREE.SRGBColorSpace;
+scene3D.background = skyTex;
+scene3D.fog = new THREE.FogExp2('#ffb88c', 0.0035);
 
 const camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.1, 500);
 const renderer = new THREE.WebGLRenderer({ canvas: webglCanvas, antialias: true });
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
-const ambientLight = new THREE.AmbientLight(0xffffff, 0.45);
+const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
 scene3D.add(ambientLight);
 
-const dirLight = new THREE.DirectionalLight(0xffe14d, 1.2);
+const dirLight = new THREE.DirectionalLight(0xfff0cc, 1.4);
 dirLight.position.set(50, 80, -30);
 dirLight.castShadow = true;
-dirLight.shadow.camera.left = -30;
-dirLight.shadow.camera.right = 30;
-dirLight.shadow.camera.top = 100;
-dirLight.shadow.camera.bottom = -20;
+dirLight.shadow.camera.left = -30; dirLight.shadow.camera.right = 30;
+dirLight.shadow.camera.top = 100; dirLight.shadow.camera.bottom = -30;
 dirLight.shadow.camera.far = 200;
+dirLight.shadow.mapSize.width = 1024; dirLight.shadow.mapSize.height = 1024;
 scene3D.add(dirLight);
 
-// Дорога и окружение
+// Генератор текстуры дороги с разметкой
+const roadCanvas = document.createElement('canvas');
+roadCanvas.width = 512; roadCanvas.height = 512;
+const roadCtx = roadCanvas.getContext('2d');
+roadCtx.fillStyle = '#2c2e35'; roadCtx.fillRect(0, 0, 512, 512);
+roadCtx.fillStyle = '#f0f0f0';
+// Прерывистые линии между 4 полосами
+[179, 256, 333].forEach(x => {
+  for (let y = 0; y < 512; y += 128) roadCtx.fillRect(x - 4, y, 8, 64);
+});
+// Сплошные линии по краям
+roadCtx.fillRect(102 - 4, 0, 8, 512);
+roadCtx.fillRect(410 - 4, 0, 8, 512);
+
+export const roadTex = new THREE.CanvasTexture(roadCanvas);
+roadTex.wrapS = THREE.RepeatWrapping; roadTex.wrapT = THREE.RepeatWrapping;
+roadTex.repeat.set(1, 150);
+roadTex.anisotropy = renderer.capabilities.getMaxAnisotropy();
+
 const roadGeo = new THREE.PlaneGeometry(24, 1000);
-const roadMat = new THREE.MeshStandardMaterial({ color: 0x3a3d45, roughness: 0.9 });
+const roadMat = new THREE.MeshStandardMaterial({ map: roadTex, roughness: 0.8 });
 const road = new THREE.Mesh(roadGeo, roadMat);
 road.rotation.x = -Math.PI / 2;
 road.receiveShadow = true;
 scene3D.add(road);
 
-// Разметка (центральная двойная сплошная)
-const lineGeo = new THREE.PlaneGeometry(0.2, 1000);
-const lineMat = new THREE.MeshBasicMaterial({ color: 0xe8e8e8 });
-const line = new THREE.Mesh(lineGeo, lineMat);
-line.rotation.x = -Math.PI / 2;
-line.position.y = 0.02;
-scene3D.add(line);
+// Отбойники
+const railGeo = new THREE.BoxGeometry(0.3, 0.6, 1000);
+const railMat = new THREE.MeshStandardMaterial({ color: 0x8a909c, metalness: 0.6, roughness: 0.4 });
+const railL = new THREE.Mesh(railGeo, railMat);
+railL.position.set(-7.5, 0.3, 0); railL.receiveShadow = true; railL.castShadow = true;
+scene3D.add(railL);
+const railR = new THREE.Mesh(railGeo, railMat);
+railR.position.set(7.5, 0.3, 0); railR.receiveShadow = true; railR.castShadow = true;
+scene3D.add(railR);
 
+// Трава
 const grassGeo = new THREE.PlaneGeometry(200, 1000);
-const grassMat = new THREE.MeshStandardMaterial({ color: 0x355e3b, roughness: 1 });
+const grassMat = new THREE.MeshStandardMaterial({ color: 0x2b4c2b, roughness: 1 });
 const grassL = new THREE.Mesh(grassGeo, grassMat);
-grassL.rotation.x = -Math.PI / 2; grassL.position.set(-112, -0.1, 0); grassL.receiveShadow = true;
+grassL.rotation.x = -Math.PI / 2; grassL.position.set(-112, -0.05, 0); grassL.receiveShadow = true;
 scene3D.add(grassL);
 const grassR = new THREE.Mesh(grassGeo, grassMat);
-grassR.rotation.x = -Math.PI / 2; grassR.position.set(112, -0.1, 0); grassR.receiveShadow = true;
+grassR.rotation.x = -Math.PI / 2; grassR.position.set(112, -0.05, 0); grassR.receiveShadow = true;
 scene3D.add(grassR);
 
 function rs() {
@@ -87,7 +120,6 @@ function rs() {
   cv.width = W*d; cv.height = H*d;
   ctx.setTransform(d,0,0,d,0,0);
   S = Math.max(H, W/1.778);
-  
   renderer.setSize(W, H);
   renderer.setPixelRatio(d);
   camera.aspect = W / H;
@@ -95,57 +127,54 @@ function rs() {
 }
 window.addEventListener('resize', rs); rs();
 
-// --- ПРОЦЕДУРНАЯ ГЕНЕРАЦИЯ 3D МАШИН (Voxel Style) ---
+// --- ПРОЦЕДУРНЫЕ МОДЕЛИ (ДЕТАЛИЗИРОВАННЫЕ) ---
 function createVehicleMesh(k, T, hue, sat, lig) {
   const group = new THREE.Group();
   
-  // Материалы
   const bodyColor = new THREE.Color(`hsl(${hue}, ${sat}%, ${lig}%)`);
-  const matBody = new THREE.MeshStandardMaterial({ color: bodyColor, roughness: 0.4, metalness: 0.1 });
-  const matGlass = new THREE.MeshStandardMaterial({ color: 0x11161c, roughness: 0.1, metalness: 0.8 });
+  const matBody = new THREE.MeshStandardMaterial({ color: bodyColor, roughness: 0.3, metalness: 0.3 });
+  const matGlass = new THREE.MeshStandardMaterial({ color: 0x050608, roughness: 0.1, metalness: 0.9 });
   const matBlack = new THREE.MeshStandardMaterial({ color: 0x101010, roughness: 0.9 });
-  const matRed = new THREE.MeshBasicMaterial({ color: 0xff1111 }); // Светятся сами
-  const matWhite = new THREE.MeshBasicMaterial({ color: 0xffffee });
+  const matRed = new THREE.MeshBasicMaterial({ color: 0xff1111 }); // Стопы
+  const matWhite = new THREE.MeshBasicMaterial({ color: 0xffffee }); // Фары
 
   const w = T.w, h = T.h, L = T.L;
-  const cl = 0.35; // Клиренс (высота подвески)
+  const cl = 0.18; // Реалистичный клиренс
 
-  // Вспомогательная функция для добавления кубиков (центр Z отсчитывается от заднего бампера вглубь)
   const addBox = (width, height, depth, x, y, z, mat) => {
     const mesh = new THREE.Mesh(new THREE.BoxGeometry(width, height, depth), mat);
-    mesh.position.set(x, y + height/2, -z); // -z потому что едем вперед по оси -Z
-    mesh.castShadow = true;
-    mesh.receiveShadow = true;
+    mesh.position.set(x, y + height/2, -z);
+    mesh.castShadow = true; mesh.receiveShadow = true;
     group.add(mesh);
   };
 
   if (k === 'car') {
-    addBox(w, h*0.4, L, 0, cl, L/2, matBody); // Основа
-    addBox(w*0.8, h*0.5, L*0.5, 0, cl+h*0.4, L*0.6, matGlass); // Кабина
-    addBox(w*0.82, 0.05, L*0.48, 0, cl+h*0.9, L*0.6, matBody); // Крыша
+    addBox(w*0.95, h*0.4, L*0.98, 0, cl, L/2, matBody); // Шасси
+    addBox(w*0.8, h*0.38, L*0.5, 0, cl+h*0.4, L*0.55, matGlass); // Остекление кабины
+    addBox(w*0.82, 0.05, L*0.48, 0, cl+h*0.75, L*0.55, matBody); // Крыша
   } else if (k === 'truck') {
-    addBox(w*0.9, h*0.4, L*0.2, 0, cl, L*0.85, matBody); // Кабина низ
-    addBox(w*0.9, h*0.5, L*0.2, 0, cl+h*0.4, L*0.85, matGlass); // Кабина стекла
-    addBox(w, h-cl, L*0.75, 0, cl, L*0.375, matBody); // Кузов/будка
+    addBox(w*0.9, h*0.35, L*0.2, 0, cl, L*0.85, matBody); 
+    addBox(w*0.85, h*0.45, L*0.18, 0, cl+h*0.35, L*0.86, matGlass); 
+    addBox(w, h-cl, L*0.75, 0, cl, L*0.375, matBody); 
   } else if (k === 'bus') {
-    addBox(w, h-cl, L, 0, cl, L/2, matBody); // Основа автобуса
-    addBox(w*1.02, h*0.4, L*0.8, 0, cl+h*0.3, L/2, matGlass); // Окна сплошной полосой
+    addBox(w, h-cl, L, 0, cl, L/2, matBody); 
+    addBox(w*1.02, h*0.35, L*0.9, 0, cl+h*0.25, L/2, matGlass); 
   }
 
-  // Колеса (простые черные кубы)
-  const r = k === 'car' ? 0.35 : 0.55;
-  const aw = w + 0.1;
+  // Колеса
+  const r = k === 'car' ? 0.32 : 0.5;
+  const aw = w + 0.05;
   const ax = k === 'car' ? [L*0.2, L*0.8] : (k==='truck' ? [L*0.15, L*0.5, L*0.85] : [L*0.2, L*0.8]);
   ax.forEach(z => addBox(aw, r*2, r*2, 0, 0, z, matBlack));
 
-  // Фары
-  addBox(w*0.8, 0.2, 0.1, 0, cl+0.2, 0.05, matRed); // Задние (стоп-сигналы)
-  addBox(w*0.8, 0.2, 0.1, 0, cl+0.2, L-0.05, matWhite); // Передние
+  // Оптика
+  addBox(w*0.8, 0.15, 0.05, 0, cl+0.3, 0.01, matRed); 
+  addBox(w*0.8, 0.15, 0.05, 0, cl+0.3, L-0.01, matWhite);
 
   return group;
 }
 
-// --- ИГРОВАЯ ЛОГИКА ---
+// --- ЛОГИКА ---
 const LW=3.6, HALF=LW*2, LANES=[-5.4, -1.8, 1.8, 5.4], FAR=380, CH=1.15;
 const TYPES={car:{w:1.8,h:1.45,L:4.4,v:[22,32]},truck:{w:2.5,h:3.6,L:10,v:[15,20]},bus:{w:2.55,h:3.2,L:12,v:[17,23]}};
 const K={L:['ArrowLeft','KeyA'],R:['ArrowRight','KeyD'],U:['ArrowUp','KeyW'],D:['ArrowDown','KeyS']};
@@ -170,7 +199,7 @@ function applyCar(){CAR=CARS[sel];VMAX=CAR.v;KG=SHV.map(x=>7000/(x*VMAX/68));con
 function save(){try{localStorage.setItem('tr_coins',coins);localStorage.setItem('tr_own',own.join(','));localStorage.setItem('tr_sel',sel);localStorage.setItem('tr_vol',vol);localStorage.setItem('tr_dens',dens)}catch(e){}applyCar()}
 applyCar();
 
-// --- ЗВУК ---
+// --- ЗВУК (без изменений) ---
 const sfx=(()=>{
   let ac,NB,mst,o=[],eg,egFront,ef,wg,wf,tg,qg,engPan,exhPan,mute=false,lastScr=0;
   const noise=()=>{const s=ac.createBufferSource();s.buffer=NB;s.loop=true;s.start();return s};
@@ -180,34 +209,23 @@ const sfx=(()=>{
     try{ac=new(window.AudioContext||window.webkitAudioContext)()}catch(e){return}
     NB=ac.createBuffer(1,ac.sampleRate*2,ac.sampleRate);const d=NB.getChannelData(0);for(let i=0;i<d.length;i++)d[i]=Math.random()*2-1;
     const cmp=ac.createDynamicsCompressor();mst=ac.createGain();mst.gain.value=vol;mst.connect(cmp);cmp.connect(ac.destination);
-    
     const lis = ac.listener;
     if(lis.positionX) { lis.positionX.value=0; lis.positionY.value=0; lis.positionZ.value=0; lis.forwardX.value=0; lis.forwardY.value=0; lis.forwardZ.value=-1; } 
     else if(lis.setPosition) { lis.setPosition(0,0,0); lis.setOrientation(0,0,-1,0,1,0); }
-
     engPan = ac.createPanner(); engPan.panningModel = 'HRTF'; engPan.setPosition(0, -0.4, -1.5);
     exhPan = ac.createPanner(); exhPan.panningModel = 'HRTF'; exhPan.setPosition(0, -0.4, 2.5);
-
-    const cabinOut = ac.createBiquadFilter();
-    cabinOut.type = 'lowpass'; cabinOut.frequency.value = 1600; 
-    cabinOut.connect(mst);
-    engPan.connect(cabinOut); exhPan.connect(cabinOut);
-
+    const cabinOut = ac.createBiquadFilter(); cabinOut.type = 'lowpass'; cabinOut.frequency.value = 1600; 
+    cabinOut.connect(mst); engPan.connect(cabinOut); exhPan.connect(cabinOut);
     const ws=ac.createWaveShaper(),cr=new Float32Array(256);for(let i=0;i<256;i++)cr[i]=Math.tanh((i/128-1)*2.2);ws.curve=cr;
     ef=ac.createBiquadFilter();ef.type='lowpass';ef.Q.value=1.5;
-    eg=ac.createGain();eg.gain.value=0; 
-    egFront=ac.createGain();egFront.gain.value=0; 
-
+    eg=ac.createGain();eg.gain.value=0; egFront=ac.createGain();egFront.gain.value=0; 
     const mixFront = ac.createGain(); mixFront.connect(egFront); egFront.connect(engPan);
     ws.connect(ef); ef.connect(eg); eg.connect(exhPan);
-
     for(const [t,r,g,isFront] of [['sawtooth',1,.15,true],['square',2.003,.1,true],['sawtooth',.5,.5,false],['sine',1,.7,false],['sine',.5,.5,false]]){
       const s=ac.createOscillator(),gg=ac.createGain();s.type=t;gg.gain.value=g;s.connect(gg);
       gg.connect(isFront ? mixFront : ws); s.start();o.push([s,r]);
     }
-    [wf,wg]=chain(noise(),'lowpass',400,.5,0);
-    [,tg]=chain(noise(),'lowpass',220,.7,0);
-    [,qg]=chain(noise(),'bandpass',1800,8,0);
+    [wf,wg]=chain(noise(),'lowpass',400,.5,0); [,tg]=chain(noise(),'lowpass',220,.7,0); [,qg]=chain(noise(),'bandpass',1800,8,0);
   }
   function burst(type,f1,f2,q,gain,dur){
     if(!ac||mute)return;const t=ac.currentTime,s=ac.createBufferSource(),f=ac.createBiquadFilter(),g=ac.createGain();
@@ -222,25 +240,18 @@ const sfx=(()=>{
     s.connect(f);f.connect(g);g.connect(mst);s.start(t);s.stop(t+dur+.05);
   }
   return{
-    init,
-    toggle(){mute=!mute;if(ac)mute?ac.suspend():ac.resume();popup=mute?'Звук выкл':'Звук вкл';popT=1},
+    init, toggle(){mute=!mute;if(ac)mute?ac.suspend():ac.resume();popup=mute?'Звук выкл':'Звук вкл';popT=1},
     shift(){burst('bandpass',3200,1500,1.5,.12,.16);tone(95,60,.08,.15,'square')},
     scrape(){const n=performance.now();if(n-lastScr>180){lastScr=n;burst('bandpass',2500,1800,2,.25,.25)}},
     crash(){burst('lowpass',2500,80,.8,1.2,1.1);burst('highpass',3000,800,.7,.6,.5);tone(110,35,.6,.9)},
     pop(){
-      if(!ac||mute)return;
-      const t = ac.currentTime, s = ac.createBufferSource(), f = ac.createBiquadFilter(), g = ac.createGain();
-      s.buffer = NB; s.loop = true;
-      f.type = 'bandpass'; f.frequency.value = 140 + Math.random()*200; f.Q.value = 1.1; 
-      g.gain.setValueAtTime(.0001, t);
-      g.gain.exponentialRampToValueAtTime(4.0 + Math.random()*2.0, t + .01);
-      g.gain.exponentialRampToValueAtTime(.0001, t + .15 + Math.random()*.15);
-      s.connect(f); f.connect(g); g.connect(exhPan);
-      s.start(t); s.stop(t + .4);
+      if(!ac||mute)return; const t = ac.currentTime, s = ac.createBufferSource(), f = ac.createBiquadFilter(), g = ac.createGain();
+      s.buffer = NB; s.loop = true; f.type = 'bandpass'; f.frequency.value = 140 + Math.random()*200; f.Q.value = 1.1; 
+      g.gain.setValueAtTime(.0001, t); g.gain.exponentialRampToValueAtTime(4.0 + Math.random()*2.0, t + .01); g.gain.exponentialRampToValueAtTime(.0001, t + .15 + Math.random()*.15);
+      s.connect(f); f.connect(g); g.connect(exhPan); s.start(t); s.stop(t + .4);
     },
     update(){
-      if(!ac)return;
-      if(state==='pause'||mute){if(ac.state==='running')ac.suspend();return}
+      if(!ac)return; if(state==='pause'||mute){if(ac.state==='running')ac.suspend();return}
       if(ac.state==='suspended')ac.resume();
       const t=ac.currentTime,vn=P.v/VMAX,run=state==='play'&&P.crash===0,thr=run?P.thr:0,f=P.rpm/60*CAR.cyl;
       for(const [s,r] of o)s.frequency.setTargetAtTime(f*r,t,.03);
@@ -248,8 +259,7 @@ const sfx=(()=>{
       eg.gain.setTargetAtTime(run?(.28+.20*thr+.15*P.rpm/7000)*(P.sh>0?.45:1):0,t,.04);
       egFront.gain.setTargetAtTime(run?(.08+.05*thr+.03*P.rpm/7000):0,t,.04); 
       wf.frequency.setTargetAtTime(300+vn*1100,t,.1);wg.gain.setTargetAtTime(vn*vn*.2*(P.crash>0?.3:1),t,.1);
-      tg.gain.setTargetAtTime(vn*.16,t,.1);
-      qg.gain.setTargetAtTime(run?Math.max(0,Math.abs(P.vx)-4)*vn*.03:0,t,.05);
+      tg.gain.setTargetAtTime(vn*.16,t,.1); qg.gain.setTargetAtTime(run?Math.max(0,Math.abs(P.vx)-4)*vn*.03:0,t,.05);
     }
   };
 })();
@@ -266,8 +276,7 @@ function garageKey(c){
 
 window.addEventListener('keydown',e=>{
   if(['ArrowLeft','ArrowRight','ArrowUp','ArrowDown','Space'].includes(e.code))e.preventDefault();
-  if(e.repeat)return;
-  held[e.code]=performance.now();
+  if(e.repeat)return; held[e.code]=performance.now();
   sfx.init();if(e.code==='KeyM')sfx.toggle();
   if(state==='garage'){garageKey(e.code);return}
   if(e.code==='KeyG'&&(state==='menu'||state==='over')){gFrom=state;gi=sel;state='garage';return}
@@ -295,14 +304,12 @@ function spawn(zr){
     let ahead=null;for(const o of cars)if(o.ln===ln&&o.z>z&&(!ahead||o.z<ahead.z))ahead=o;
     const vv=ahead&&ahead.z-z<80?Math.min(vv0,ahead.v):vv0;
     
-    // Генерируем 3D-модель
     const hue = car ? Math.random()*360|0 : [210,25,0,140,50][Math.random()*5|0];
     const sat = car ? 55+Math.random()*30 : 40;
     const lig = car ? 35+Math.random()*25 : (k==='bus' ? 50 : 55+Math.random()*15);
     
     const mesh = createVehicleMesh(k, T, hue, sat, lig);
     scene3D.add(mesh);
-
     cars.push({k,T,ln,x:LANES[ln],z,v0:vv0,v:vv,home:ln,cd:0, gap:9, passed:false, nt:4+Math.random()*8, mesh});
     return;
   }
@@ -362,6 +369,9 @@ function step(dt){
   P.z+=P.v*dt;P.comboT-=dt;if(P.comboT<=0)P.combo=0;
   shake=Math.max(0,shake-dt*1.6);flash=Math.max(0,flash-dt*1.5);popT=Math.max(0,popT-dt);
   
+  // Анимация текстуры дороги
+  if (roadTex) roadTex.offset.y -= (P.v * dt) / 24;
+
   cars.sort((a,b)=>b.z-a.z);
   for(const c of cars){
     ai(c,dt);c.z+=c.v*dt;
@@ -439,8 +449,9 @@ function render3D() {
   camera.rotation.z = -P.roll;
   camera.rotation.y = -P.s * 0.05;
   
-  // Дорога и свет двигаются за игроком
   road.position.z = -P.z - 500;
+  railL.position.z = -P.z - 500;
+  railR.position.z = -P.z - 500;
   grassL.position.z = -P.z - 500;
   grassR.position.z = -P.z - 500;
   dirLight.position.set(P.x + 50, 80, -P.z - 30);
@@ -454,7 +465,6 @@ function render3D() {
         else c.mesh.rotation.z = 0;
     }
   }
-  
   renderer.render(scene3D, camera);
 }
 
@@ -474,9 +484,41 @@ function dial(x,y,r,v,max,step,lab,red){
   ctx.strokeStyle='#ff3b2f';ctx.lineWidth=r*.04;ctx.beginPath();ctx.moveTo(x-c*r*.15,y-s*r*.15);ctx.lineTo(x+c*r*.85,y+s*r*.85);ctx.stroke();
   ctx.fillStyle='#1b1d22';ctx.beginPath();ctx.arc(x,y,r*.09,0,7);ctx.fill();
 }
+function drawMirrors() {
+  const p=M;
+  // Салонное зеркало
+  const mw = 0.2*S, mh = 0.07*S;
+  ctx.fillStyle = '#0a0c10';
+  ctx.beginPath(); ctx.roundRect(W/2 - mw/2, S*0.02, mw, mh, 8); ctx.fill();
+  let lg = ctx.createLinearGradient(0, S*0.02, 0, S*0.09);
+  lg.addColorStop(0, '#5a6270'); lg.addColorStop(1, '#2c313c');
+  ctx.fillStyle = lg;
+  ctx.beginPath(); ctx.roundRect(W/2 - mw/2 + 3, S*0.02 + 3, mw - 6, mh - 6, 4); ctx.fill();
+
+  // Левое зеркало (на стойке)
+  const lx = p(0.18, 0.4)[0], ly = p(0.18, 0.4)[1], smw = 0.1*S, smh = 0.08*S;
+  ctx.fillStyle = '#0a0c10';
+  ctx.beginPath(); ctx.roundRect(lx, ly, smw, smh, 6); ctx.fill();
+  lg = ctx.createLinearGradient(0, ly, 0, ly+smh);
+  lg.addColorStop(0, '#5a6270'); lg.addColorStop(1, '#2c313c');
+  ctx.fillStyle = lg;
+  ctx.beginPath(); ctx.roundRect(lx+3, ly+3, smw-6, smh-6, 4); ctx.fill();
+
+  // Правое зеркало
+  const rx = p(0.82, 0.4)[0] - smw, ry = p(0.82, 0.4)[1];
+  ctx.fillStyle = '#0a0c10';
+  ctx.beginPath(); ctx.roundRect(rx, ry, smw, smh, 6); ctx.fill();
+  lg = ctx.createLinearGradient(0, ry, 0, ry+smh);
+  lg.addColorStop(0, '#5a6270'); lg.addColorStop(1, '#2c313c');
+  ctx.fillStyle = lg;
+  ctx.beginPath(); ctx.roundRect(rx+3, ry+3, smw-6, smh-6, 4); ctx.fill();
+}
+
 function cockpit(){
   ctx.clearRect(0, 0, cv.width, cv.height);
   const p=M;
+  drawMirrors(); // Рисуем зеркала за стеклами
+
   ctx.save();ctx.beginPath();ctx.rect(-5,-5,W+10,H+10);wsP();sdP();
   let g=ctx.createLinearGradient(0,0,0,H);g.addColorStop(0,'#040405');g.addColorStop(.6,'#0e0f12');g.addColorStop(1,'#07080a');
   ctx.fillStyle=g;ctx.fill('evenodd');
@@ -554,7 +596,6 @@ function loop(ts){
   requestAnimationFrame(loop);
 }
 
-// Заглушка (массив cars ИНИЦИАЛИЗИРОВАН СРАЗУ)
 applyCar();
 P={x:0,vx:0,v:0,s:0,thr:0,brk:0,z:0,bonus:0,combo:0,comboT:0,roll:0,crash:0,rpm:900,gear:1,pk:0,pkv:0,sh:0,gt:0,popCd:0,offGasT:0};
 cars = []; 
