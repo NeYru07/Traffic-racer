@@ -25,7 +25,9 @@ const SHV=[20.4,26,33,42,53.5,68],CARS=[
  {name:'Городской хэтч',price:0,v:62,a:5,h:1,cyl:2,col:'#c0392b',cab:1, mass:1100, cog:0.015},
  {name:'Спорт-седан',price:1500,v:70,a:6.2,h:1.05,cyl:2.2,col:'#2d6cdf',cab:.9, mass:1600, cog:0.01, pops:true},
  {name:'Купе',price:5000,v:80,a:8,h:1.12,cyl:2.6,col:'#e0a020',cab:.8, mass:1450, cog:0.008, pops:true},
- {name:'Суперкар',price:12000,v:92,a:9,h:1.2,cyl:3.2,col:'#27ae60',cab:.65, mass:1300, cog:0.005, pops:true}],held={},tm=a=>Math.max(...a.map(k=>held[k]||0));
+ {name:'Суперкар',price:12000,v:92,a:9,h:1.2,cyl:3.2,col:'#27ae60',cab:.65, mass:1300, cog:0.005, pops:true},
+ {name: 'BNV', price: 15000,v:110,a:11,h:1.4,cyl:3.8,col: '#eeeeee',cab:.111, mass:1350, cog:0.07, pops:true},
+ {name: '812', price: 25000,v:250,a:25,h:2.5,cyl:5,col: '#ff2800',cab:.250, mass:1200, cog:0.003, pops:true}],held={},tm=a=>Math.max(...a.map(k=>held[k]||0));
 let state='menu',best=0,P,cars,shake=0,flash=0,popup='',popT=0,last=0;
 try{best=+localStorage.getItem('tr_best')||0}catch(e){}
 try{coins=+localStorage.getItem('tr_coins')||0;own=(localStorage.getItem('tr_own')||'0').split(',').map(Number).filter(n=>n>=0&&n<CARS.length);sel=+localStorage.getItem('tr_sel')||0;const sv=localStorage.getItem('tr_vol'),sd=localStorage.getItem('tr_dens');if(sv!==null)vol=Math.max(0,Math.min(1,+sv));if(sd!==null)dens=Math.max(1,Math.min(5,+sd||3))}catch(e){}
