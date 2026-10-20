@@ -320,7 +320,7 @@ function scene(){
   if(shake>0){sx+=(Math.random()-.5)*shake*24;sy+=(Math.random()-.5)*shake*24}
   
   // ИЗМЕНЕНО: теперь крен P.roll применяется всегда, создавая визуальный эффект подвески
-  ctx.save();ctx.translate(W/2+sx,H/2+sy);ctx.rotate(P.s*.015+P.roll);ctx.scale(1.08,1.08);ctx.translate(-W/2,-H/2);
+  ctx.save();ctx.translate(W/2+sx,H/2+sy);ctx.rotate(P.s*.003+P.roll);ctx.scale(1.08,1.08);ctx.translate(-W/2,-H/2);
   
   let g=ctx.createLinearGradient(0,0,0,hy);g.addColorStop(0,'#1d2b64');g.addColorStop(.7,'#c06c84');g.addColorStop(1,'#f8b26a');
   ctx.fillStyle=g;ctx.fillRect(-W*.2,-H*.3,W*1.4,hy+H*.3);
