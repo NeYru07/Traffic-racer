@@ -25,12 +25,12 @@ function Tn(r){const f=r/CAR.rl,a=CAR.tq[0],b=CAR.tq[1];if(f<=.11)return .35;if(
 
 // ДОБАВЛЕНО: mass (масса) и cog (центр тяжести) для каждой машины
 const CARS=[
- {name:'Hanada Civix',price:0,v:62,a:5,h:1,cyl:2,col:'#FFFF00',cab:1, int:'civic', n:6, rl:7000, idle:800, tmax:8, tq:[.31,.57], mass:1100, cog:0.015, snd: { p:2, h:[1, 2, 0.5, 1.5, 4], v:[0.6, 0.4, 0.1, 0.1, 0.05], fb:280}},
- {name:'Sabaru WRZ-T',price:4000,v:70,a:6.2,h:1.05,cyl:2.2,col:'#2d6cdf',cab:.9, n:6, rl:6700, idle:750, tmax:8, tq:[.45,.72], mass:1500, cog:0.01, pops:true, snd: { p:2, h:[1, 2, 0.5, 0.75, 1.5], v:[0.5, 0.1, 0.6, 0.5, 0], fb:200 }},
- {name:'Masuda RX-9',price:7500,v:78,a:7.5,h:1.12,cyl:2.6,col:'#e0a020',cab:.8, n:5, rl:8000, idle:800, tmax:9, red:7000, tq:[.5,.75], mass:1300, cog:0.009, pops:true, snd: { p:3, h:[1, 2, 0.5, 3, 4], v:[0.3, 0.1, 0.1, 0.7, 0.4], fb:350 }},
- {name:'Corvetta Stingra',price:12500,v:85,a:8.2,h:1.2,cyl:3.2,col:'#27ae60',cab:.65, n:8, rl:6600, idle:700, tmax:8, tq:[.62,.85], mass:1600, cog:0.008, pops:true, snd: { p:4, h:[1, 2, 0.5, 1.5, 0.25], v:[0.7, 0.2, 0.7, 0.1, 0.2], fb:180 }},
- {name: 'Bavaro B5', price: 18000,v:88.88,a:8.8,h:1.18,cyl:0.4,col: '#eeeeee',cab:.75, n:8, rl:7200, idle:700, tmax:8, tq:[.25,.81], mass:1800, cog:0.012, pops:true, snd: { p:5, h:[1, 2, 0.5, 1.5, 2.5], v:[0.5, 0.4, 0.2, 0.4, 0.2], fb:250 }},
- {name: 'Ferrano F812', price: 25000,v:100,a:9.5,h:1.2,cyl:8,col: '#ff2800',cab:.65, n:7, rl:9500, idle:1000, tmax:10, tq:[.7,.88], mass:1650, cog:0.006, pops:true, snd: { p:6, h:[1, 2, 0.5, 1.5, 3], v:[0.4, 0.2, 0.1, 0.6, 0.5], fb:320 }}],held={},tm=a=>Math.max(...a.map(k=>held[k]||0));
+ {name:'Hanada Civix', eng:'civic',price:0,v:62,a:5,h:1,cyl:2,col:'#FFFF00',cab:1, int:'civic', n:6, rl:7000, idle:800, tmax:8, tq:[.31,.57], mass:1100, cog:0.015, snd: { p:2, h:[1, 2, 0.5, 1.5, 4], v:[0.6, 0.4, 0.1, 0.1, 0.05], fb:280}},
+ {name:'Sabaru WRZ-T', eng:'wrx',price:4000,v:70,a:6.2,h:1.05,cyl:2.2,col:'#2d6cdf',cab:.9, n:6, rl:6700, idle:750, tmax:8, tq:[.45,.72], mass:1500, cog:0.01, pops:true, snd: { p:2, h:[1, 2, 0.5, 0.75, 1.5], v:[0.5, 0.1, 0.6, 0.5, 0], fb:200 }},
+ {name:'Masuda RX-9', eng:'rx',price:7500,v:78,a:7.5,h:1.12,cyl:2.6,col:'#e0a020',cab:.8, n:5, rl:8000, idle:800, tmax:9, red:7000, tq:[.5,.75], mass:1300, cog:0.009, pops:true, snd: { p:3, h:[1, 2, 0.5, 3, 4], v:[0.3, 0.1, 0.1, 0.7, 0.4], fb:350 }},
+ {name:'Corvetta Stingra', eng:'vette',price:12500,v:85,a:8.2,h:1.2,cyl:3.2,col:'#27ae60',cab:.65, n:8, rl:6600, idle:700, tmax:8, tq:[.62,.85], mass:1600, cog:0.008, pops:true, snd: { p:4, h:[1, 2, 0.5, 1.5, 0.25], v:[0.7, 0.2, 0.7, 0.1, 0.2], fb:180 }},
+ {name: 'Bavaro B5', eng:'m5', price: 18000,v:88.88,a:8.8,h:1.18,cyl:0.4,col: '#eeeeee',cab:.75, n:8, rl:7200, idle:700, tmax:8, tq:[.25,.81], mass:1800, cog:0.012, pops:true, snd: { p:5, h:[1, 2, 0.5, 1.5, 2.5], v:[0.5, 0.4, 0.2, 0.4, 0.2], fb:250 }},
+ {name: 'Ferrano F812', eng:'f812', price: 25000,v:100,a:9.5,h:1.2,cyl:8,col: '#ff2800',cab:.65, n:7, rl:9500, idle:1000, tmax:10, tq:[.7,.88], mass:1650, cog:0.006, pops:true, snd: { p:6, h:[1, 2, 0.5, 1.5, 3], v:[0.4, 0.2, 0.1, 0.6, 0.5], fb:320 }}],held={},tm=a=>Math.max(...a.map(k=>held[k]||0));
 let state='menu',best=0,P,cars,shake=0,flash=0,popup='',popT=0,last=0;
 try{best=+localStorage.getItem('tr_best')||0}catch(e){}
 try{coins=+localStorage.getItem('tr_coins')||0;own=(localStorage.getItem('tr_own')||'0').split(',').map(Number).filter(n=>n>=0&&n<CARS.length);sel=+localStorage.getItem('tr_sel')||0;const sv=localStorage.getItem('tr_vol'),sd=localStorage.getItem('tr_dens');{const sm=localStorage.getItem('tr_mt');if(sm!==null)manual=sm==='1'}if(sv!==null)vol=Math.max(0,Math.min(1,+sv));if(sd!==null)dens=Math.max(1,Math.min(5,+sd||3))}catch(e){}
@@ -71,8 +71,65 @@ addEventListener('keydown',e=>{
 addEventListener('keyup',e=>{held[e.code]=0});
 addEventListener('blur',()=>{for(const k in held)held[k]=0;if(state==='play')state='pause'});
 
+// ---------- синтез двигателя: каждый такт вспышки — импульс, прошедший через резонаторы выхлопа (форманты); порядок работы цилиндров свой у каждого мотора ----------
+// конфиги двигателей: cycle — цикл в градусах коленвала (720 — 4-тактный, 360 — роторный); ev — [угол, банк, вес] событий впрыска/выпуска;
+// ex — форманты выхлопа [Гц, добротность, усиление]; exg — общий уровень; rasp — шумовая «хрипота»; ik — [уровень, срез Гц] впуска; wh — [уровень, кратность оборотов] воя; tb — [уровень, база Гц] турбины
+const ENGS={
+ civic:{cycle:720,nb:1,ev:[[0,0,1],[180,0,.96],[360,0,1.04],[540,0,.95]],ex:[[110,4,1.0],[260,3.5,.8],[520,3,.55],[1300,2.5,.3]],exg:9.2,rasp:.35,hiOpen:.6,ik:[.35,900],wh:[.02,4],tb:[0,1000],lope:.4,wander:.008,aj:.08,idle:800,rl:7000,gx:.9,gf:.5,cab:1700,note:'рядная «четвёрка»'},
+ wrx:{cycle:720,nb:1,ev:[[0,0,1],[150,0,.8],[360,0,1],[510,0,.8]],ex:[[90,5,1.2],[190,4,.9],[420,3,.5],[900,2.5,.25]],exg:11.6,rasp:.25,hiOpen:.4,ik:[.3,800],wh:[.02,4],tb:[.05,900],lope:.9,wander:.012,aj:.1,idle:750,rl:6700,gx:.95,gf:.5,cab:1500,note:'оппозитная «четвёрка» с разнодлинными выпускными коллекторами и турбиной'},
+ rx:{cycle:360,nb:2,ev:[[0,0,1],[180,1,1]],ex:[[150,3,.6],[420,3,.7],[950,3,.8],[2200,2.5,.7]],detune:1.03,exg:2.8,rasp:.75,hiOpen:.7,ik:[.45,1600],wh:[.05,3],tb:[0,1000],lope:.5,wander:.006,aj:.12,idle:800,rl:8000,gx:.85,gf:.5,cab:2200,note:'двухсекционный роторный'},
+ vette:{cycle:720,nb:2,ev:[[0,0,1.25],[180,0,.8],[450,0,1.15],[630,0,.7],[90,1,.75],[270,1,1.2],[360,1,.7],[540,1,1.15]],ex:[[85,5,1.2],[170,4,1.0],[340,3.5,.7],[700,2.5,.35],[1400,2.5,.2]],detune:1.05,exg:5.9,rasp:.3,hiOpen:.5,ik:[.45,900],wh:[.02,4],tb:[0,1000],lope:1.2,wander:.012,aj:.1,idle:700,rl:6600,gx:.95,gf:.55,cab:1700,note:'V8 с крестообразным коленвалом, атмосферный'},
+ m5:{cycle:720,nb:2,ev:[[0,0,1.15],[180,0,.88],[450,0,1.08],[630,0,.82],[90,1,.85],[270,1,1.12],[360,1,.8],[540,1,1.1]],ex:[[70,6,1.4],[140,5,1.1],[280,4,.7],[560,3,.3],[1100,2.5,.12]],detune:1.04,exg:9.7,rasp:.15,hiOpen:.2,ik:[.3,700],wh:[.03,4],tb:[.035,1000],lope:1.0,wander:.01,aj:.07,idle:700,rl:7200,gx:1.0,gf:.5,cab:1500,note:'V8 битурбо (F90): глубокий, приглушённый турбинами рокот'},
+ f812:{cycle:720,nb:2,ev:[[0,0,1],[60,1,1],[120,0,1],[180,1,.98],[240,0,1],[300,1,1],[360,0,1.02],[420,1,1],[480,0,.98],[540,1,1],[600,0,1],[660,1,1]],ex:[[130,4,.8],[330,3.5,1.0],[760,3,1.0],[1700,2.5,.8],[3200,2.5,.4]],detune:1.015,exg:1.8,rasp:.25,hiOpen:.6,ik:[.4,1500],wh:[.04,6],tb:[0,1000],lope:.3,wander:.006,aj:.06,idle:1000,rl:9500,gx:.9,gf:.5,cab:2400,note:'V12, атмосферный'},
+};
+const ENG_WK=`
+class EngineProc extends AudioWorkletProcessor{
+  static get parameterDescriptors(){return[
+    {name:'rpm',defaultValue:900,minValue:0,maxValue:14000,automationRate:'k-rate'},
+    {name:'load',defaultValue:0,minValue:0,maxValue:1,automationRate:'k-rate'}]}
+  constructor(){super();this.c=null;this.ph=0;this.rs=1234567;this.wn=0;this.port.onmessage=e=>this.setup(e.data)}
+  rnd(){this.rs=(this.rs*1664525+1013904223)>>>0;return this.rs/4294967296}
+  setup(c){
+    const sr=sampleRate;this.c=c;this.cyc=c.cycle/360;
+    this.ev=c.ev.map(e=>({p:(e[0]/360)%this.cyc,b:e[1],w:e[2]}));this.nb=c.nb||1;
+    // форманты выхлопа: полосовые резонаторы (частота, добротность, усиление); второй банк чуть расстроен
+    this.fl=[];for(let b=0;b<this.nb;b++){const d=b?(c.detune||1.03):1;
+      this.fl.push(c.ex.map((f,k)=>{const w0=2*Math.PI*f[0]*d/sr,al=Math.sin(w0)/(2*f[1]),a0=1+al;return{b0:al/a0,a1:-2*Math.cos(w0)/a0,a2:(1-al)/a0,g:f[2],hi:k>=2,z1:0,z2:0}}))}
+    this.q=[[0,0,0],[0,0,0]];this.env=[0,0];this.dec=Math.exp(-1/(.0012*sr));
+    this.ln0=0;this.ln1=0;this.hp=0;this.wp=0;this.tp=0;this.ikc=1-Math.exp(-2*Math.PI*c.ik[1]/sr);
+  }
+  process(inp,out,par){
+    const c=this.c;if(!c)return true;
+    const o0=out[0][0],o1=out[0][1]||out[0][0],n=o0.length,sr=sampleRate,rpm=par.rpm[0],ld=par.load[0],rn=Math.min(1.2,rpm/c.rl);
+    const dph0=rpm/60/sr,cyc=this.cyc,lope=1+(c.lope||0)*Math.max(0,1-rpm/(1.7*c.idle));
+    let ph=this.ph;const hf=1-c.hiOpen*(1-ld),eg=c.exg*(.55+.45*ld),W2=2*Math.PI;
+    for(let i=0;i<n;i++){
+      this.wn+=(this.rnd()-.5-this.wn)*.0006;                       // медленное «плавание» оборотов (особенно на холостых)
+      const nph=ph+dph0*(1+this.wn*(c.wander||.012)*lope*8);
+      for(let k=0;k<this.ev.length;k++){const e=this.ev[k];
+        const hit=nph>=cyc?((e.p>ph&&e.p<=cyc)||e.p<=nph-cyc):(e.p>ph&&e.p<=nph);
+        if(hit){const a=e.w*(1+(c.aj||.1)*lope*(this.rnd()*2-1))*(.7+.3*ld),q=this.q[e.b];q[0]+=a;q[1]+=a*.6;q[2]+=a*.25;if(a>this.env[e.b])this.env[e.b]=a}}
+      ph=nph>=cyc?nph-cyc:nph;
+      let ex=0;
+      for(let b=0;b<this.nb;b++){const q=this.q[b];
+        const x0=q[0]+(this.rnd()*2-1)*this.env[b]*c.rasp;q[0]=q[1];q[1]=q[2];q[2]=0;this.env[b]*=this.dec;
+        const fl=this.fl[b];
+        for(let k=0;k<fl.length;k++){const f=fl[k],x=f.hi?x0*hf:x0,y=f.b0*x+f.z1;f.z1=-f.a1*y+f.z2;f.z2=-f.b0*x-f.a2*y;ex+=y*f.g}}
+      // моторный отсек: шум впуска (двойной НЧ-фильтр), механический вой, свист турбины
+      const nz=this.rnd()*2-1;this.ln0+=(nz-this.ln0)*this.ikc;this.ln1+=(this.ln0-this.ln1)*this.ikc;this.hp+=(this.ln1-this.hp)*.003;
+      const inb=(this.ln1-this.hp)*c.ik[0]*(.15+.85*ld)*(.3+.7*rn)*(1+.5*Math.min(1,this.env[0]));
+      this.wp+=W2*rpm/60*c.wh[1]/sr;if(this.wp>W2)this.wp-=W2;
+      const boost=ld*Math.pow(rn,1.3);this.tp+=W2*c.tb[1]*(.35+.65*boost)/sr;if(this.tp>W2)this.tp-=W2;
+      const fr=inb+Math.sin(this.wp)*c.wh[0]*rn*rn*(.4+.6*ld)+Math.sin(this.tp)*c.tb[0]*boost*boost;
+      o0[i]=Math.tanh(1.1*fr);o1[i]=Math.tanh(1.1*ex*eg);
+    }
+    this.ph=ph;return true;
+  }
+}
+registerProcessor('engine-proc',EngineProc);
+`;
 const sfx=(()=>{
-  let ac,NB,mst,o=[],eg,egFront,ef,wg,wf,tg,qg,engPan,exhPan,mute=false,lastScr=0;
+  let ac,NB,mst,o=[],eg,egFront,ef,wg,wf,tg,qg,qf,sqO=[],engPan,exhPan,mute=false,lastScr=0,wk=null,wkCar=-1,useWk=false,cabF=null,lastThr=0,lastBlow=0;
   const noise=()=>{const s=ac.createBufferSource();s.buffer=NB;s.loop=true;s.start();return s};
   const chain=(src,type,fq,q,gain)=>{const f=ac.createBiquadFilter();f.type=type;f.frequency.value=fq;f.Q.value=q;const g=ac.createGain();g.gain.value=gain;src.connect(f);f.connect(g);g.connect(mst);return[f,g]};
   function init(){
@@ -86,7 +143,7 @@ const sfx=(()=>{
     else if(lis.setPosition) { lis.setPosition(0,0,0); lis.setOrientation(0,0,-1,0,1,0); }
     engPan = ac.createPanner(); engPan.panningModel = 'HRTF'; setPos(engPan,0,-0.4,-1.5);
     exhPan = ac.createPanner(); exhPan.panningModel = 'HRTF'; setPos(exhPan,0,-0.4,2.5);
-    const cabinOut = ac.createBiquadFilter(); cabinOut.type = 'lowpass'; cabinOut.frequency.value = 1600; 
+    const cabinOut = ac.createBiquadFilter(); cabinOut.type = 'lowpass'; cabinOut.frequency.value = 1600; cabF=cabinOut; 
     cabinOut.connect(mst); engPan.connect(cabinOut); exhPan.connect(cabinOut);
     const ws=ac.createWaveShaper(),cr=new Float32Array(256);for(let i=0;i<256;i++)cr[i]=Math.tanh((i/128-1)*2.2);ws.curve=cr;
     ef=ac.createBiquadFilter();ef.type='lowpass';ef.Q.value=1.5;
@@ -100,7 +157,14 @@ const sfx=(()=>{
       const s=ac.createOscillator(),gg=ac.createGain();s.type=t;gg.gain.value=0;s.connect(gg);
       gg.connect(isFront ? mixFront : ws); s.start(); o.push([s, gg]);
     }
-    [wf,wg]=chain(noise(),'lowpass',400,.5,0); [,tg]=chain(noise(),'lowpass',220,.7,0); [,qg]=chain(noise(),'bandpass',1800,8,0);
+    [wf,wg]=chain(noise(),'lowpass',400,.5,0); [,tg]=chain(noise(),'lowpass',220,.7,0); [qf,qg]=chain(noise(),'bandpass',1500,14,0);
+    {const sqf=ac.createBiquadFilter();sqf.type='lowpass';sqf.frequency.value=2200;sqf.connect(mst);   // свист шин: узкополосный шум + два «поющих» тона
+     for(const m of[1,1.52]){const s=ac.createOscillator();s.type='triangle';s.frequency.value=1000*m;const g=ac.createGain();g.gain.value=0;s.connect(g);g.connect(sqf);s.start();sqO.push([s,g,m])}}
+    // новый движок звука: если AudioWorklet недоступен — остаётся прежний генератор на осцилляторах
+    try{if(ac.audioWorklet&&typeof AudioWorkletNode!=='undefined'){
+      const url=URL.createObjectURL(new Blob([ENG_WK],{type:'application/javascript'}));
+      ac.audioWorklet.addModule(url).then(()=>{wk=new AudioWorkletNode(ac,'engine-proc',{numberOfInputs:0,numberOfOutputs:1,outputChannelCount:[2]});
+        const sp=ac.createChannelSplitter(2);wk.connect(sp);sp.connect(egFront,0);sp.connect(eg,1);wkCar=-1;useWk=true}).catch(()=>{useWk=false})}}catch(e){useWk=false}
   }
   function burst(type,f1,f2,q,gain,dur){
     if(!ac||mute)return;const t=ac.currentTime,s=ac.createBufferSource(),f=ac.createBiquadFilter(),g=ac.createGain();
@@ -135,25 +199,32 @@ const sfx=(()=>{
       if(ac.state==='suspended')ac.resume();
       
       const t=ac.currentTime, vn=P.v/VMAX, run=state==='play'&&P.crash===0&&!(P.stall>0), thr=run?P.thr:0;
-      const snd = CAR.snd; // Забираем настройки звука текущей машины
-      const f = (P.rpm / 60) * snd.p; // Базовая частота
-      
-      // Динамически применяем гармоники и их громкость для текущей машины
-      for(let i=0; i<o.length; i++) {
-        o[i][0].frequency.setTargetAtTime(f * snd.h[i], t, .03); // Управляем питчем обертона
-        o[i][1].gain.setTargetAtTime(snd.v[i], t, .03);          // Управляем громкостью обертона
+      const snd = CAR.snd, en = ENGS[CAR.eng];
+      if(useWk&&en&&wk){
+        if(wkCar!==sel){wk.port.postMessage(en);wkCar=sel;if(cabF)cabF.frequency.setTargetAtTime(en.cab,t,.05)}
+        wk.parameters.get('rpm').setTargetAtTime(P.rpm,t,.012);wk.parameters.get('load').setTargetAtTime(thr,t,.04);
+        const cut=(P.sh>0?.45:1)*(P.lim>0?.12:1)*(1-.55*P.bog*(Math.sin(t*30)>0?1:0));
+        eg.gain.setTargetAtTime(run?en.gx*cut:0,t,.01+.03*(P.lim>0?0:1));
+        egFront.gain.setTargetAtTime(run?en.gf*cut:0,t,.03);
+        for(let i=0;i<o.length;i++)o[i][1].gain.setTargetAtTime(0,t,.03);
+        if(en.tb[0]>0&&lastThr>.6&&thr<.2&&P.rpm>CAR.rl*.35&&performance.now()-lastBlow>600){lastBlow=performance.now();burst('bandpass',2600,900,1.2,.14+en.tb[0]*1.5,.38)}   // сброс наддува турбин
+      }else{
+        const f = (P.rpm / 60) * snd.p;
+        for(let i=0; i<o.length; i++) { o[i][0].frequency.setTargetAtTime(f * snd.h[i], t, .03); o[i][1].gain.setTargetAtTime(snd.v[i], t, .03); }
+        ef.frequency.setTargetAtTime(snd.fb + P.rpm*.22 + thr*450, t, .05);
+        eg.gain.setTargetAtTime(run?(.28+.20*thr+.15*P.rpm/CAR.rl)*(P.sh>0?.45:1)*(P.lim>0?.12:1)*(1-.55*P.bog*(Math.sin(t*30)>0?1:0)):0,t,.01+.03*(P.lim>0?0:1));
+        egFront.gain.setTargetAtTime(run?(.08+.05*thr+.03*P.rpm/CAR.rl):0,t,.04);
       }
-      
-      ef.frequency.setTargetAtTime(snd.fb + P.rpm*.22 + thr*450, t, .05); // Базовая частота фильтра
-      eg.gain.setTargetAtTime(run?(.28+.20*thr+.15*P.rpm/CAR.rl)*(P.sh>0?.45:1)*(P.lim>0?.12:1)*(1-.55*P.bog*(Math.sin(t*30)>0?1:0)):0,t,.01+.03*(P.lim>0?0:1));
-      egFront.gain.setTargetAtTime(run?(.08+.05*thr+.03*P.rpm/CAR.rl):0,t,.04); 
+      lastThr=thr;
       wf.frequency.setTargetAtTime(300+vn*1100,t,.1);wg.gain.setTargetAtTime(vn*vn*.2*(P.crash>0?.3:1),t,.1);
-      tg.gain.setTargetAtTime(vn*.16,t,.1); qg.gain.setTargetAtTime(run?Math.max(0,Math.abs(P.vx)-4)*vn*.03:0,t,.05);
+      tg.gain.setTargetAtTime(vn*.16,t,.1); {const sq=run?P.squeal:0,wob=.8+.2*Math.sin(t*27)+.1*Math.sin(t*61);   // свист шин: громче и выше при сильном скольжении
+        qg.gain.setTargetAtTime(sq*sq*.12*wob,t,.03);qf.frequency.setTargetAtTime(1150+vn*700+sq*450+Math.sin(t*19)*40*sq,t,.04);
+        for(const [s,g,m] of sqO){s.frequency.setTargetAtTime((880+vn*420+sq*260)*m+Math.sin(t*23)*35*sq,t,.04);g.gain.setTargetAtTime(sq*.05*wob,t,.04)}}
     }
   };
 })();
 function start(){applyCar();initRoad();
-  P={x:LANES[2],vx:0,v:40/3.6,s:0,thr:0,brk:0,z:0,bonus:0,combo:0,comboT:0,roll:0,crash:0,rpm:CAR.idle,gear:1,pk:0,pkv:0,sh:0,gt:0,popCd:0,offGasT:0,head:0,lim:0,stall:0,stallT:0,bog:0,bogMsg:0};
+  P={x:LANES[2],vx:0,v:40/3.6,s:0,thr:0,brk:0,z:0,bonus:0,combo:0,comboT:0,roll:0,crash:0,rpm:CAR.idle,gear:1,pk:0,pkv:0,sh:0,gt:0,popCd:0,offGasT:0,head:0,lim:0,stall:0,stallT:0,bog:0,bogMsg:0,sl:0,squeal:0};
   for(let g=1;g<=CAR.n;g++)if(P.v*KG[g-1]>=CAR.rl*.4)P.gear=g;
   cars=[];shake=0;flash=0;popT=0;state='play';
   {const N=Math.round(DENS[dens-1]*TRAFFIC_K);for(let i=0;i<N;i++)spawn(45+i*(FAR+SPAWN_BUF-60)/N)}
@@ -233,8 +304,14 @@ function step(dt){
     if(!manual){const ov=Math.max(0,wr/rl-1);over=ov*.5;cut=ov>.05}
     P.bog+=(bog-P.bog)*Math.min(1,dt*10);
     const thrE=cut?0:P.thr;
+    // --- сцепление: нужное центростремительное ускорение v²/R против предела; торможение и руль тоже «съедают» сцепление.
+    //     Сверх предела машину сносит наружу поворота, она теряет скорость, руль слабеет; шины свистят ---
+    const G=9*CAR.h,need=ck*P.v*P.v,uu=Math.hypot(need/G,P.brk*.45,Math.abs(P.s)*.25),slip=Math.max(0,uu-1);
+    P.sl+=(-Math.sign(ck)*slip*G*.9-P.sl)*Math.min(1,4*dt);
+    P.squeal=Math.min(1,Math.max(0,(uu-.78)*2.2));
+    if(slip>.05)shake=Math.max(shake,Math.min(.12,slip*.25));
     const wf2=Tn(P.rpm)*KG[P.gear-1]/KG[0]*CAR.a*(1-.92*bog);
-    const a=thrE*(P.sh>0?.25:1)*wf2-P.brk*30-(.35+CAR.cd*P.v*P.v)-(1-thrE)*.9*Math.max(0,P.rpm-CAR.idle)/(CAR.rl-CAR.idle)-over*60-bog*1.2-(P.stall>0?1.5:0);
+    const a=thrE*(P.sh>0?.25:1)*wf2-P.brk*30-(.35+CAR.cd*P.v*P.v)-(1-thrE)*.9*Math.max(0,P.rpm-CAR.idle)/(CAR.rl-CAR.idle)-over*60-bog*1.2-(P.stall>0?1.5:0)-slip*G*.35;
     P.v=Math.max((manual||P.brk>.1)?0:10,P.v+(a-9.81*gs*GRAV_K)*dt);   // подъём тормозит, спуск разгоняет даже без газа (зависит от угла уклона)
 
     // --- ИЗМЕНЕНО: НОВАЯ СИМКАДНАЯ ФИЗИКА РУЛЕНИЯ ---
@@ -247,22 +324,22 @@ function step(dt){
     P.s += (targetSteer - P.s) * Math.min(1, steerRate * dt);
     
     // 3. Вычисляем боковое ускорение (зависит от сцепления CAR.h и скорости)
-    const latAccel = P.s * 13 * CAR.h * Math.max(0.4, 1 - vn * 0.35);
+    const latAccel = P.s * 13 * CAR.h * Math.max(0.4, 1 - vn * 0.35) * Math.max(.35, 1 - slip*1.4);
     
     // 4. Инерция от массы: чем тяжелее, тем плавнее нарастает скорость смещения
     const inertia = 9000 / CAR.mass; 
     P.vx += (latAccel - P.vx) * Math.min(1, inertia * dt);
-    P.x += (P.vx - ck*P.v*P.v*.22) * dt;   // на повороте машину сносит наружу
+    P.x += (P.vx + P.sl - ck*P.v*P.v*.10) * dt;   // небольшой снос всегда, сильный — сверх предела сцепления
 
     // 5. Крен кузова (зависит от центра тяжести и бокового ускорения)
-    P.roll += (-P.vx * CAR.cog * 0.15 - ck*P.v*P.v*CAR.cog*.35 - P.roll) * Math.min(1, 12 * dt);
+    P.roll += (-P.vx * CAR.cog * 0.15 - ck*P.v*P.v*CAR.cog*.35 - P.sl*CAR.cog*.3 - P.roll) * Math.min(1, 12 * dt);
     // ------------------------------------------------
 
     const lim=HALF-.95;
     if(Math.abs(P.x)>lim){P.x=Math.sign(P.x)*lim;P.vx=-P.vx*.15;P.v*=1-1.2*dt;shake=Math.max(shake,.25);sfx.scrape();spark(Math.sign(P.x))}
   }else{
     // ИЗМЕНЕНО: При аварии крен плавно возвращается в ноль (P.roll*=.95)
-    P.v=Math.max(0,P.v-45*dt);P.vx*=.9;P.s*=.95;P.roll*=.95;P.crash+=dt;
+    P.v=Math.max(0,P.v-45*dt);P.vx*=.9;P.sl*=.9;P.squeal=0;P.s*=.95;P.roll*=.95;P.crash+=dt;
     if(P.crash>1.4&&state==='play'){state='over';lastGain=score();coins+=lastGain;save();if(score()>best){best=score();try{localStorage.setItem('tr_best',best)}catch(e){}}}
   }
   P.sh=Math.max(0,P.sh-dt);P.gt=Math.max(0,P.gt-dt);
@@ -506,7 +583,7 @@ function world(){
       if(drawQ){if(prevFront!==null&&front!==prevFront)flushB();prevFront=front}   // на границе гребня — сброс пакета (дальнее не просвечивает)
       if(drawQ&&front){        // полосы за гребнем не рисуем
         BL=LB;if(zq>3){const gc=br?(br.w?(par?'#356f93':'#2f6a8e'):(par?'#2b4f32':'#27472d')):(par?'#386441':'#355e3b');
-          flat2(HALF+1,GX,za,zb,gc,-gd0,-gd1);flat2(-GX,-HALF-1,za,zb,gc,-gd0,-gd1)}
+          flat2(HALF+1,Math.max(70,1.8*zq+40),za,zb,gc,-gd0,-gd1);flat2(-Math.max(70,1.8*zq+40),-HALF-1,za,zb,gc,-gd0,-gd1)}
         BL=LB+1;flat(-HALF-1,HALF+1,za,zb,par?'#41444d':'#3a3d45');
         BL=LB+2;if(z0<170){const wc=par?'#3b3e46':'#35383f';for(const lx of LANES){flat(lx-1.15,lx-.55,za,zb,wc);flat(lx+.55,lx+1.15,za,zb,wc)}}
         BL=LB+3;if(sW%16===0&&z0>=.4)flat(-HALF-1,HALF+1,z0,z0+.2,'#2e3036');                     // стыки плит
@@ -558,7 +635,7 @@ function world(){
 
 function scene(){
   roadFrame();const vn=P.v/VMAX,vs=Math.min(1.3,P.v/70);
-  f=W*(.64-.2*Math.min(1,vs));cx=P.x;vx0=W/2-P.vx*W*.006;hy=H-.57*S+P.pk*S+alpha*f;
+  f=W*(.64-.2*Math.min(1,vs));cx=P.x;vx0=W/2-(P.vx+P.sl*.6)*W*.006;hy=H-.57*S+P.pk*S+alpha*f;
   const tt=performance.now()/1000;
   let sx=(Math.sin(tt*43)+Math.sin(tt*27.3))*.05*vs*vs,sy=(Math.sin(tt*51)+Math.sin(tt*33.7))*.07*vs*vs+Math.sin(tt*38)*bump*1.6*vs;
   if(P.bog>.02)sy+=Math.sin(tt*70)*P.bog*2.2;
@@ -573,10 +650,11 @@ function scene(){
   ctx.fillStyle='#ffd9a0';ctx.beginPath();ctx.arc(W/2+W*.18+bgx,hy-H*.1,H*.05,0,7);ctx.fill();
   let sg=ctx.createRadialGradient(W/2+W*.18+bgx,hy-H*.1,0,W/2+W*.18+bgx,hy-H*.1,H*.35);sg.addColorStop(0,'rgba(255,214,150,.55)');sg.addColorStop(1,'rgba(255,214,150,0)');ctx.fillStyle=sg;ctx.fillRect(-W*.2,-H*.3,W*1.4,hy+H*.3);
   ctx.fillStyle='rgba(255,226,210,.32)';for(let i=0;i<7;i++){const x=((((i*.19+P.z*3e-5+bgx/W)%1.3)+1.3)%1.3-.15)*W,y=hy-H*(.14+.05*(i%4)),r=H*(.03+.01*(i%3));for(let j=0;j<3;j++){ctx.beginPath();ctx.ellipse(x+j*r*1.1,y+(j%2)*r*.2,r*1.6,r*.55,0,0,7);ctx.fill()}}
-  const hill=(off,amp,fr,col)=>{ctx.fillStyle=col;ctx.beginPath();ctx.moveTo(-W*.2,hy+H*.1);for(let i=0;i<=48;i++){const x=-W*.2+i*W*1.4/48,u=x/W*fr+off;ctx.lineTo(x,hy-amp*(Math.sin(u)*.5+Math.sin(u*2.3+1)*.3+Math.sin(u*5.1)*.12+.6))}ctx.lineTo(W*1.2,hy+H*.1);ctx.fill()};
+  g=ctx.createLinearGradient(0,hy,0,hy+H*.14);g.addColorStop(0,fogc('#355e3b',9));g.addColorStop(1,fogc('#355e3b',5));   // дальняя равнина: к горизонту светлее
+  ctx.fillStyle=g;ctx.fillRect(-W*.2,hy,W*1.4,H*.14);ctx.fillStyle=fogc('#355e3b',3);ctx.fillRect(-W*.2,hy+H*.14-1,W*1.4,H);
+  const hill=(off,amp,fr,col)=>{ctx.fillStyle=col;ctx.beginPath();ctx.moveTo(-W*.2,hy+H*.14);for(let i=0;i<=48;i++){const x=-W*.2+i*W*1.4/48,u=x/W*fr+off;ctx.lineTo(x,hy-amp*(Math.sin(u)*.5+Math.sin(u*2.3+1)*.3+Math.sin(u*5.1)*.12+.6))}ctx.lineTo(W*1.2,hy+H*.14);ctx.fill()};
   const pxo=0;hill(2+pxo-bgx/W*1.2,H*.06,5,'#6d5a78');hill(7+pxo*2-bgx/W*2,H*.04,8,'#4e4a63');hill(11+pxo*3-bgx/W*5,H*.012,40,'#2a4630');
   ctx.restore();ctx.save();ctx.translate(W/2+sx,H/2+sy);ctx.rotate(P.s*.003+P.roll);ctx.scale(1.08,1.08);ctx.translate(-W/2,-H/2);   // мир: с креном
-  ctx.fillStyle=fogc('#355e3b',16);ctx.fillRect(-W*.2,hy,W*1.4,H*.8);   // дальняя земля = цвет полностью затуманенной полосы
   world();
   ctx.restore();
 }
@@ -699,7 +777,7 @@ function interiorCivic(){
   ctx.font=`600 ${r*.15}px system-ui,sans-serif`;ctx.fillStyle=manual?'#ffe14d':'#8a90a0';ctx.fillText(manual?(P.stall>0?'СТОП':P.lim>0?'ОТСЕЧКА':'МКПП'):'АКПП',gx1,gy+r*.82);ctx.fillStyle='#fff';
   // руль: тонкий обод, четыре спицы, крупная ступица
   const [hx,hy2]=p(.5,.92),R=.3*S;
-  ctx.fillStyle='#0a0a0c';ctx.beginPath();ctx.roundRect(hx-.62*R,hy2-.5*R,.3*R,.06*R,.03*R);ctx.fill();ctx.beginPath();ctx.roundRect(hx+.32*R,hy2-.5*R,.3*R,.06*R,.03*R);ctx.fill();   // подрулевые рычаги
+  ctx.fillStyle='#0a0a0c';ctx.beginPath();ctx.roundRect(hx-.80*R,hy2-.23*R,.36*R,.05*R,.025*R);ctx.fill();ctx.beginPath();ctx.roundRect(hx+.44*R,hy2-.23*R,.36*R,.05*R,.025*R);ctx.fill();   // подрулевые рычаги — ниже приборов, за ободом
   ctx.save();ctx.translate(hx,hy2);ctx.rotate(P.s*.85+Math.max(-.9,Math.min(.9,curveK*120)));ctx.lineCap='round';ctx.lineJoin='round';
   ctx.strokeStyle='#111216';ctx.lineWidth=R*.17;ctx.beginPath();ctx.arc(0,0,R,0,7);ctx.stroke();
   ctx.strokeStyle='rgba(255,255,255,.06)';ctx.lineWidth=R*.02;ctx.beginPath();ctx.arc(0,0,R*1.045,Math.PI*1.1,Math.PI*1.7);ctx.stroke();
