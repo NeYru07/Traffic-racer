@@ -7,7 +7,14 @@
 :root{box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);color-scheme:dark}
 html,body{height:100%;margin:0;background:#0b0d12;overflow:hidden}
 canvas{display:block;width:100%;height:100%}
-</style></head><body><canvas id="c"></canvas><script>
+#mp{position:fixed;inset:0;display:none;align-items:center;justify-content:center;background:rgba(8,10,16,.84);font:14px system-ui,sans-serif;color:#e8ebf2;z-index:5;padding:12px}
+#mp .b{width:min(520px,100%);background:#171a23;border:1px solid #30343c;border-radius:14px;padding:18px;display:flex;flex-direction:column;gap:10px;box-sizing:border-box}
+#mp h2{margin:0;font-size:20px}#mp #mpS{line-height:1.4;color:#d6dbe6}
+#mp textarea{display:block;width:100%;box-sizing:border-box;height:84px;background:#0b0d12;color:#cfd6e4;border:1px solid #30343c;border-radius:8px;padding:8px;font:12px ui-monospace,Consolas,monospace;resize:none}
+#mp .r{display:flex;gap:8px;flex-wrap:wrap}
+#mp button{flex:1;min-width:120px;padding:10px 12px;border-radius:9px;border:0;background:#ffe14d;color:#14161c;font-weight:700;cursor:pointer}
+#mp button.g{background:#2a2e38;color:#e8ebf2}
+</style></head><body><canvas id="c"></canvas><div id="mp"><div class="b"><h2>Сетевая игра · 2 игрока</h2><div id="mpS"></div><textarea id="mpMy" readonly></textarea><textarea id="mpIn" placeholder="Вставьте код сюда"></textarea><div class="r" id="mpBt"></div></div></div><script>
 const cv=document.getElementById('c'),ctx=cv.getContext('2d');
 let W,H,S=1;
 function rs(){const d=Math.min(devicePixelRatio||1,2);W=cv.clientWidth;H=cv.clientHeight;cv.width=W*d;cv.height=H*d;ctx.setTransform(d,0,0,d,0,0);S=Math.max(H,W/1.778)}
@@ -50,7 +57,7 @@ function garageKey(c){
   else if(c==='Escape'||c==='KeyG'||c==='Backspace')state=gFrom;
 }
 
-addEventListener('keydown',e=>{
+addEventListener('keydown',e=>{if(lobbyOpen){if(e.code==='Escape')cancelLobby();return}
   if(['ArrowLeft','ArrowRight','ArrowUp','ArrowDown','Space'].includes(e.code))e.preventDefault();
   if(e.ctrlKey&&['KeyS','KeyD','KeyP','KeyA'].includes(e.code))e.preventDefault();   // Ctrl — понижающая, не даём браузеру перехватить
   if(e.repeat)return;
@@ -69,13 +76,13 @@ addEventListener('keydown',e=>{
   if(state==='settings'){settingsKey(e.code);return}
   if(e.code==='KeyT'){manual=!manual;save();popup=manual?'Коробка: механика':'Коробка: автомат';popT=1.4}
   if(e.code==='KeyO'&&(state==='menu'||state==='over'||state==='pause')){sFrom=state;state='settings';return}
-  if(e.code==='KeyG'&&(state==='menu'||state==='over')){gFrom=state;gi=sel;state='garage';return}
+  if(e.code==='KeyG'&&!MP.on&&(state==='menu'||state==='over')){gFrom=state;gi=sel;state='garage';return}
   if(e.code==='Space'||e.code==='Enter'){if(state==='pause')state='play';else if(state!=='play')start()}
-  if(e.code==='KeyP'||e.code==='Escape'){if(state==='play')state='pause';else if(state==='pause')state='play'}
-  if(e.code==='KeyR'&&state!=='menu')start();
+  if(!MP.on&&(e.code==='KeyP'||e.code==='Escape')){if(state==='play')state='pause';else if(state==='pause')state='play'}
+  if(e.code==='KeyR'&&state!=='menu'&&!MP.on)start();
 });
 addEventListener('keyup',e=>{held[e.code]=0});
-addEventListener('blur',()=>{for(const k in held)held[k]=0;if(state==='play')state='pause'});
+addEventListener('blur',()=>{for(const k in held)held[k]=0;if(state==='play'&&!MP.on)state='pause'});
 
 // ---------- синтез двигателя: каждый такт вспышки — импульс, прошедший через резонаторы выхлопа (форманты); порядок работы цилиндров свой у каждого мотора ----------
 // конфиги двигателей: cycle — цикл в градусах коленвала (720 — 4-тактный, 360 — роторный); ev — [угол, банк, вес] событий впрыска/выпуска;
@@ -229,8 +236,86 @@ const sfx=(()=>{
     }
   };
 })();
-function start(){applyCar();initRoad();
-  P={x:LANES[2],vx:0,v:40/3.6,s:0,thr:0,brk:0,z:0,bonus:0,combo:0,comboT:0,roll:0,crash:0,rpm:CAR.idle,gear:1,pk:0,pkv:0,sh:0,gt:0,popCd:0,offGasT:0,head:0,lim:0,stall:0,stallT:0,bog:0,bogMsg:0,sl:0,squeal:0};
+// ---------- сетевая игра: WebRTC peer-to-peer, обмен кодами вручную; общий seed даёт одинаковую трассу ----------
+// Сейчас у каждого игрока свой трафик, соперник — «призрак» (rvOn/RV). Для общего трафика и столкновений RV можно добавить в cars и пересылать снимки ИИ от хоста.
+function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
+let TSEED=0,RR,RE,RB,RV=null,lobbyOpen=false;
+const MP={on:false,link:false,host:false,pc:null,ctl:null,st:null,cd:0,rid:0,tx:0};
+const el=id=>document.getElementById(id);
+const rvOn=()=>MP.on&&RV&&(state==='play'||state==='over');
+function hex2hsl(h){let c=h.slice(1);if(c.length===3)c=c[0]+c[0]+c[1]+c[1]+c[2]+c[2];const n=parseInt(c,16),r=(n>>16&255)/255,g=(n>>8&255)/255,b=(n&255)/255,mx=Math.max(r,g,b),mn=Math.min(r,g,b),d=mx-mn,l=(mx+mn)/2;let hh=0;if(d){hh=mx===r?((g-b)/d)%6:mx===g?(b-r)/d+2:(r-g)/d+4;hh*=60;if(hh<0)hh+=360}return[Math.round(hh),Math.round(d?d/(1-Math.abs(2*l-1))*100:0),Math.round(l*100)]}
+function mkRival(ci){const q=CARS[ci|0]||CARS[0],[h,s,l]=hex2hsl(q.col);return{k:'car',T:TYPES.car,x:0,z:0,tz:0,tx:0,v:0,hue:h,sat:s,lig:l,br:false,crash:0,sc:0,fresh:1,gh:1,name:q.name}}
+// код соединения: JSON → deflate → base64 (если браузер не умеет сжимать — просто base64)
+const b64e=u=>btoa(String.fromCharCode(...u)),b64d=t=>Uint8Array.from(atob(t),c=>c.charCodeAt(0));
+async function pack(o){const t=new TextEncoder().encode(JSON.stringify(o));
+  if(window.CompressionStream){const cs=new CompressionStream('deflate-raw'),w=cs.writable.getWriter();w.write(t);w.close();return 'Z'+b64e(new Uint8Array(await new Response(cs.readable).arrayBuffer()))}
+  return 'R'+b64e(t)}
+async function unpack(t){t=t.trim();let u=b64d(t.slice(1));
+  if(t[0]==='Z'){const ds=new DecompressionStream('deflate-raw'),w=ds.writable.getWriter();w.write(u);w.close();u=new Uint8Array(await new Response(ds.readable).arrayBuffer())}
+  return JSON.parse(new TextDecoder().decode(u))}
+const gathered=pc=>new Promise(res=>{if(pc.iceGatheringState==='complete')return res();const h=()=>{if(pc.iceGatheringState==='complete'){pc.removeEventListener('icegatheringstatechange',h);res()}};pc.addEventListener('icegatheringstatechange',h);setTimeout(res,5000)});
+function mkPC(){const pc=new RTCPeerConnection({iceServers:[{urls:'stun:stun.l.google.com:19302'}]});
+  pc.onconnectionstatechange=()=>{if(pc===MP.pc&&pc.connectionState==='failed')mpLost()};return pc}
+function wire(ch,pc){ch.onclose=()=>{if(pc===MP.pc)mpLost()};
+  if(ch.label==='ctl'){MP.ctl=ch;ch.onopen=mpOpen;ch.onmessage=e=>{try{onCtl(JSON.parse(e.data))}catch(x){}};if(ch.readyState==='open')mpOpen()}
+  else{MP.st=ch;ch.onmessage=e=>onSt(e.data)}}
+function sendCtl(o){try{if(MP.ctl&&MP.ctl.readyState==='open')MP.ctl.send(JSON.stringify(o))}catch(e){}}
+function mpClose(){const pc=MP.pc;MP.pc=MP.ctl=MP.st=null;MP.link=false;MP.on=false;MP.cd=0;RV=null;try{if(pc)pc.close()}catch(e){}}
+function mpLost(){if(!MP.pc)return;mpClose();if(lobbyOpen)mpHome('Соединение не удалось или потеряно. Попробуйте ещё раз.');else{popup='Соперник отключился';popT=2.5}}
+function mpOpen(){if(MP.link)return;MP.link=true;sendCtl({t:'hello',ci:sel});mpLobbyReady()}
+function onCtl(m){
+  if(m.t==='hello'){RV=mkRival(m.ci);mpLobbyReady()}
+  else if(m.t==='start')mpBegin(m.seed|0);
+  else if(m.t==='rq'&&MP.host){popup='Соперник просит реванш';popT=2.5}}
+function onSt(d){let a;try{a=JSON.parse(d)}catch(e){return}if(!RV||a[7]!==MP.rid)return;
+  RV.tz=a[0];RV.tx=a[1];RV.v=a[2];RV.br=!!a[4];RV.sc=a[5]|0;
+  if(RV.fresh){RV.z=RV.tz;RV.x=RV.tx;RV.fresh=0}
+  if(a[3]&&!RV.crash){popup='Соперник разбился · '+RV.sc+' очк.';popT=2.2}
+  RV.crash=a[3]}
+// раунд: общий seed → одинаковая трасса; 3 секунды отсчёта; у хоста и гостя разные стартовые полосы
+function mpBegin(seed){MP.on=true;MP.rid=seed;MP.tx=0;hideLobby();start(seed);MP.cd=3;
+  if(RV)Object.assign(RV,{fresh:1,crash:0,sc:0,v:0,br:false,tz:0,tx:0,z:0,x:0});sendCtl({t:'hello',ci:sel})}
+function mpStart(){const sd=(Math.random()*4294967296)|0;sendCtl({t:'start',seed:sd});mpBegin(sd)}
+function mpRematch(){if(MP.host)mpStart();else{sendCtl({t:'rq'});popup='Запрос реванша отправлен';popT=2}}
+function leaveMP(){mpClose();showMenu()}
+// ~20 раз в секунду шлём своё состояние, соперника сглаживаем и экстраполируем по скорости
+function mpTick(dt){
+  if(!MP.on||!MP.link)return;
+  if(RV){RV.tz+=RV.v*dt;RV.z+=(RV.tz-RV.z)*Math.min(1,dt*10);RV.x+=(RV.tx-RV.x)*Math.min(1,dt*12)}
+  MP.tx-=dt;if(MP.tx>0||!MP.st||MP.st.readyState!=='open'||(state!=='play'&&state!=='over'))return;MP.tx=.05;
+  try{MP.st.send(JSON.stringify([+P.z.toFixed(1),+P.x.toFixed(2),+(MP.cd>0?0:P.v).toFixed(1),P.crash>0?1:0,P.brk>.3?1:0,score(),+P.roll.toFixed(3),MP.rid]))}catch(e){}
+}
+// ---- окно лобби ----
+function mpUI(st,my,inp,btns){el('mpS').textContent=st;const a=el('mpMy');a.style.display=my!==null?'':'none';if(my!==null)a.value=my;el('mpIn').style.display=inp?'':'none';
+  const r=el('mpBt');r.innerHTML='';for(const [t,fn,g] of btns){const x=document.createElement('button');x.textContent=t;if(g)x.className='g';x.onclick=()=>{sfx.init();fn()};r.appendChild(x)}}
+function copyMy(){const a=el('mpMy');a.select();try{navigator.clipboard.writeText(a.value)}catch(e){try{document.execCommand('copy')}catch(x){}}}
+function openLobby(){lobbyOpen=true;el('mp').style.display='flex';if(MP.link)mpLobbyReady();else mpHome()}
+function hideLobby(){lobbyOpen=false;el('mp').style.display='none'}
+function cancelLobby(){mpClose();hideLobby()}
+function mpHome(msg){mpClose();el('mpIn').value='';mpUI(msg||'Игра по сети на двух устройствах. Один игрок создаёт комнату, второй подключается по коду.',null,false,[['Создать комнату',hostMake],['Подключиться',guestJoin],['Закрыть',cancelLobby,1]])}
+function mpLobbyReady(){if(!lobbyOpen||!MP.link)return;
+  mpUI('Соединено! Соперник: '+(RV?RV.name:'…')+'.'+(MP.host?'':' Ждём старта от хоста…'),null,false,[...(MP.host?[['Старт гонки',mpStart]]:[]),['Отключиться',cancelLobby,1]])}
+async function hostMake(){
+  mpClose();MP.host=true;el('mpIn').value='';mpUI('Создаю код…',null,false,[['Отмена',cancelLobby,1]]);
+  try{const pc=MP.pc=mkPC();wire(pc.createDataChannel('ctl'),pc);wire(pc.createDataChannel('st',{ordered:false,maxRetransmits:0}),pc);
+    await pc.setLocalDescription(await pc.createOffer());await gathered(pc);
+    const code=await pack({t:pc.localDescription.type,s:pc.localDescription.sdp});
+    mpUI('1) Отправьте этот код другу. 2) Вставьте в поле ниже его ответный код и нажмите «Принять».',code,true,[['Копировать код',copyMy],['Принять ответ',hostAccept],['Отмена',cancelLobby,1]])
+  }catch(e){mpHome('Ошибка: '+e.message)}}
+async function hostAccept(){const pc=MP.pc;
+  try{const o=await unpack(el('mpIn').value);await pc.setRemoteDescription({type:o.t,sdp:o.s});el('mpS').textContent='Подключаюсь…';
+    setTimeout(()=>{if(pc===MP.pc&&!MP.link&&lobbyOpen)el('mpS').textContent='Не удаётся соединиться: сеть может блокировать прямое подключение (нужен TURN-сервер).'},20000)
+  }catch(e){el('mpS').textContent='Неверный код: '+e.message}}
+function guestJoin(){mpClose();MP.host=false;el('mpIn').value='';mpUI('Вставьте код хоста и нажмите «Создать ответ».',null,true,[['Создать ответ',guestAnswer],['Закрыть',cancelLobby,1]])}
+async function guestAnswer(){
+  try{const o=await unpack(el('mpIn').value);mpUI('Создаю ответ…',null,false,[['Отмена',cancelLobby,1]]);
+    const pc=MP.pc=mkPC();pc.ondatachannel=e=>wire(e.channel,pc);
+    await pc.setRemoteDescription({type:o.t,sdp:o.s});await pc.setLocalDescription(await pc.createAnswer());await gathered(pc);
+    const code=await pack({t:pc.localDescription.type,s:pc.localDescription.sdp});
+    mpUI('Отправьте этот код хосту и ждите подключения.',code,false,[['Копировать код',copyMy],['Отмена',cancelLobby,1]])
+  }catch(e){mpUI('Неверный код: '+e.message,null,true,[['Создать ответ',guestAnswer],['Закрыть',cancelLobby,1]])}}
+function start(seed){TSEED=seed===undefined?(Math.random()*4294967296)|0:seed;applyCar();initRoad();
+  P={x:LANES[MP.on&&MP.host?1:2],vx:0,v:40/3.6,s:0,thr:0,brk:0,z:0,bonus:0,combo:0,comboT:0,roll:0,crash:0,rpm:CAR.idle,gear:1,pk:0,pkv:0,sh:0,gt:0,popCd:0,offGasT:0,head:0,lim:0,stall:0,stallT:0,bog:0,bogMsg:0,sl:0,squeal:0};
   for(let g=1;g<=CAR.n;g++)if(P.v*KG[g-1]>=CAR.rl*.4)P.gear=g;
   cars=[];shake=0;flash=0;popT=0;state='play';
   {const N=Math.round(DENS[dens-1]*TRAFFIC_K);for(let i=0;i<N;i++)spawn(45+i*(FAR+SPAWN_BUF-60)/N)}
@@ -282,7 +367,7 @@ function near(c){
 function hit(){sfx.crash();P.crash=.001;shake=1;flash=1;P.roll=(Math.random()<.5?-1:1)*.1;popup='';}
 const score=()=>(P.z/10|0)+P.bonus;
 
-function step(dt){
+function step(dt){if(MP.on&&MP.cd>0&&state==='play'){MP.cd-=dt;if(MP.cd<=0){popup='СТАРТ!';popT=1.2}return}
   const crashed=P.crash>0,L=tm(K.L),R=tm(K.R),U=tm(K.U),D=tm(K.D);
   const dir=L&&R?(L>R?-1:1):L?-1:R?1:0,vn=P.v/VMAX,ck=kAt(P.z),gs=gAt(P.z);P.head+=ck*P.v*dt;bump*=Math.exp(-7*dt);if(state==='play'&&P.crash===0&&Math.random()<dt*.12*Math.min(1,P.v/60))bump=.35+Math.random()*.45;
   if(state==='menu'){P.v=24;P.s=0}
@@ -441,12 +526,12 @@ function ai(c,dt){
 }
 // ---------- трасса: повороты разного радиуса ----------
 const RD={pts:[],end:0};let CS=[],TH=[],CSN=0,curveK=0,XP=0,THP=0,EP=0,M0=0;
-function initRoad(){RD.pts=[{s:-300,k:0},{s:600,k:0}];RD.end=600;extendRoad(1800);EV.pts=[{s:-300,g:0},{s:500,g:0}];EV.end=500;EV.net=0;BR.length=0;brNext=1500;extendEv(1800);SC.clear();scGen=null}
+function initRoad(){RR=mulberry32(TSEED);RE=mulberry32(TSEED^0x9e3779b9);RB=mulberry32(TSEED^0x85ebca6b);RD.pts=[{s:-300,k:0},{s:600,k:0}];RD.end=600;extendRoad(1800);EV.pts=[{s:-300,g:0},{s:500,g:0}];EV.end=500;EV.net=0;BR.length=0;brNext=1500;extendEv(1800);SC.clear();scGen=null}
 function extendRoad(upTo){
   while(RD.end<upTo){
-    let s=RD.end+250+Math.random()*850;RD.pts.push({s,k:0});                 // прямая 250–1100 м
-    const t=Math.random(),R=t<.4?1800+Math.random()*1700:t<.85?900+Math.random()*700:500+Math.random()*300; // плавный / средний / крутой
-    const dir=Math.random()<.5?-1:1,rin=100+Math.random()*100,hold=150+Math.random()*350;
+    let s=RD.end+250+RR()*850;RD.pts.push({s,k:0});                 // прямая 250–1100 м
+    const t=RR(),R=t<.4?1800+RR()*1700:t<.85?900+RR()*700:500+RR()*300; // плавный / средний / крутой
+    const dir=RR()<.5?-1:1,rin=100+RR()*100,hold=150+RR()*350;
     RD.pts.push({s:s+rin,k:dir/R},{s:s+rin+hold,k:dir/R},{s:s+2*rin+hold,k:0});
     RD.end=s+2*rin+hold;
   }
@@ -484,10 +569,10 @@ function genScenery(uMax){
 const EV={pts:[],end:0,net:0},BR=[];let ES=[],alpha=0,brNext=1500;
 function extendEv(upTo){
   while(EV.end<upTo){
-    const s=EV.end+150+Math.random()*500;EV.pts.push({s,g:0});
-    const sg=Math.abs(EV.net)>20?-Math.sign(EV.net):(Math.random()<.5?-1:1),g=sg*(.014+Math.random()*.022),rin=450+Math.random()*250,hold=150+Math.random()*400;
+    const s=EV.end+150+RE()*500;EV.pts.push({s,g:0});
+    const sg=Math.abs(EV.net)>20?-Math.sign(EV.net):(RE()<.5?-1:1),g=sg*(.014+RE()*.022),rin=450+RE()*250,hold=150+RE()*400;
     EV.pts.push({s:s+rin,g},{s:s+rin+hold,g},{s:s+2*rin+hold,g:0});EV.net+=g*(rin+hold);EV.end=s+2*rin+hold}
-  while(brNext<upTo){const len=160+Math.random()*340;BR.push({s0:brNext,s1:brNext+len,D:7+Math.random()*8,w:Math.random()<.5});brNext+=len+1200+Math.random()*1800}
+  while(brNext<upTo){const len=160+RB()*340;BR.push({s0:brNext,s1:brNext+len,D:7+RB()*8,w:RB()<.5});brNext+=len+1200+RB()*1800}
 }
 function gAt(s){const p=EV.pts;for(let i=1;i<p.length;i++)if(s<=p[i].s){const a=p[i-1],b=p[i],t=Math.max(0,(s-a.s)/(b.s-a.s)),e=t*t*(3-2*t);return a.g+(b.g-a.g)*e}return 0}
 function relAt(z){const q=(P.z+z-M0*4)/4,i=Math.min(CSN-2,Math.max(0,q|0));return ES[i]+(ES[i+1]-ES[i])*(q-i)-EP}
@@ -524,7 +609,7 @@ function veh(c,rel){
   const cxe=cx-csAt(Math.max(.4,rel+c.T.L/2));
   const T=c.T,w=T.w,h=T.h,L=T.L,x=c.x,zf=rel+L,a=x-w/2,b=x+w/2,z=rel;
   const body=`hsl(${c.hue} ${c.sat}% ${c.lig}%)`,sd=`hsl(${c.hue} ${c.sat}% ${c.lig*.7}%)`,tp=`hsl(${c.hue} ${c.sat}% ${Math.min(90,c.lig*1.15)}%)`,glass='#1c2630',red=c.br?'#ff4b3e':'#a3191f',amb='#ff9a1f';
-  ctx.globalAlpha=Math.max(0,Math.min(1,(FAR-rel)/150));
+  ctx.globalAlpha=Math.max(0,Math.min(1,(FAR-rel)/150))*(c.gh&&rel<14?.55:1);
   flat(a-.15,b+.15,rel,zf,'rgba(0,0,0,.35)');
   const bx=(x0,x1,y0,y1,z0,z1,cb,cs,ct)=>{
     if(cxe<x0)wall(x0,y0,y1,z0,z1,cs);else if(cxe>x1)wall(x1,y0,y1,z0,z1,cs);
@@ -579,7 +664,7 @@ function world(){
   // Полоса видна, только если её дальний край выше всего, что ближе. Так нет «дыр» вдали на ровной дороге
   // (старая проверка по соседним полосам отбрасывала дальнюю дорогу), а всё за гребнем честно скрыто.
   const vis=new Array(nS+1);{let run=1e9;for(let i=0;i<=nS;i++){const a0=(bi+i)*2-P.z,a1=a0+2;if(a1<=.4){vis[i]=true;continue}const yy=Y(0,a1);vis[i]=yy<run-1e-6;if(yy<run)run=yy}}
-  const vl=cars.filter(c=>{const r=c.z-P.z;if(r>=FAR||r+c.T.L<=.4)return false;const k=Math.floor(c.z/2)-bi;return k<0||k>nS||vis[k]}).sort((a,b)=>b.z-a.z);let vi=0;
+  const vl=(rvOn()?cars.concat(RV):cars).filter(c=>{const r=c.z-P.z;if(r>=FAR||r+c.T.L<=.4)return false;const k=Math.floor(c.z/2)-bi;return k<0||k>nS||vis[k]}).sort((a,b)=>b.z-a.z);let vi=0;
   for(let i=nS;i>=0;i--){
     const u=bi+i,sW=u*2,z0=sW-P.z,z1=z0+2,LB=(300-(i<50?i:i<125?50+Math.floor((i-50)/3):75+Math.floor((i-125)/6)))*10;
     FL=Math.min(16,Math.max(0,Math.round((z0-FOG0)/(FAR-FOG0)*16)));
@@ -676,7 +761,7 @@ function mirror(x0,y0,x1,y1){
   ctx.fillStyle='#355e3b';ctx.fillRect(x0,hz,w,y1-hz);
   const pr=(xx,d)=>[mx+(xx-P.x)*k/d,hz+CH*k/d];
   poly([...pr(-HALF-1,200),...pr(HALF+1,200),...pr(HALF+1,2),...pr(-HALF-1,2)],'#3a3d45');
-  for(const c of cars){const d=-(c.z+c.T.L-P.z);if(d<2.5||d>110)continue;
+  for(const c of (rvOn()?cars.concat(RV):cars)){const d=-(c.z+c.T.L-P.z);if(d<2.5||d>110)continue;
     const [px,py]=pr(c.x,d),cw=c.T.w*k/d,ch=c.T.h*k/d;
     ctx.fillStyle=`hsl(${c.hue} ${c.sat}% ${c.lig*.8}%)`;ctx.fillRect(px-cw/2,py-ch,cw,ch);
     ctx.fillStyle='#1c2630';ctx.fillRect(px-cw*.4,py-ch*.9,cw*.8,ch*.3)}
@@ -850,6 +935,8 @@ function hud(){if(state==='menu'||state==='garage'||state==='settings'||state===
   const u=Math.max(14,Math.min(W,H)*.03);
   text('ОЧКИ '+score(),W-20,u*1.6,u*1.3,'#fff','right');
   text('Дистанция '+(P.z/1000).toFixed(2)+' км · Рекорд '+best,W-20,u*2.9,u*.9,'#ffd9a0','right','500');
+  if(MP.on&&RV){const d=RV.z-P.z;text(RV.crash?'Соперник разбился · '+RV.sc+' очк.':'Соперник '+(d>=0?'впереди ':'позади ')+Math.abs(d|0)+' м · '+RV.sc+' очк.',W-20,u*4.1,u*.9,RV.crash?'#ff7a7a':'#9fd0ff','right','600')}
+  if(MP.on&&MP.cd>0)text(Math.ceil(MP.cd),W/2,H*.38,u*7,'#fff','center','800');
   if(popT>0){ctx.globalAlpha=Math.min(1,popT);text(popup,W/2,H*.22,u*1.6,'#ffe14d');ctx.globalAlpha=1}
   if(flash>0){ctx.fillStyle=`rgba(255,40,40,${flash*.45})`;ctx.fillRect(0,0,W,H)}
 }
@@ -925,7 +1012,8 @@ function showMenu(){start();state='menu';mi=0}
 function openGarage(from){gFrom=from;gi=sel;state='garage'}
 function openSettings(from){sFrom=from;state='settings'}
 function menuItems(){
-  if(state==='menu')return[['Играть',()=>start()],['Гараж',()=>openGarage('menu')],['Настройки',()=>openSettings('menu')],['Управление',()=>{hFrom='menu';state='help'}]];
+  if(state==='menu')return[['Играть',()=>start()],['Сетевая игра',openLobby],['Гараж',()=>openGarage('menu')],['Настройки',()=>openSettings('menu')],['Управление',()=>{hFrom='menu';state='help'}]];
+  if(state==='over'&&MP.on)return[['Реванш',mpRematch],['Выйти из сетевой игры',leaveMP]];
   if(state==='over')return[['Играть снова',()=>start()],['Гараж',()=>openGarage('over')],['Настройки',()=>openSettings('over')],['В главное меню',showMenu]];
   if(state==='pause')return[['Продолжить',()=>{state='play'}],['Заново',()=>start()],['Настройки',()=>openSettings('pause')],['Управление',()=>{hFrom='pause';state='help'}],['В главное меню',showMenu]];
   return null;
@@ -962,10 +1050,11 @@ cv.addEventListener('click',e=>{sfx.init();const r=cv.getBoundingClientRect(),x=
 function loop(ts){
   const dt=Math.min(.033,(ts-last)/1000||0);last=ts;
   BTN.length=0;if(state!=='pause'&&state!=='garage'&&state!=='settings'&&state!=='help')step(dt);if(state==='garage')popT=Math.max(0,popT-dt);
-  sfx.update();scene();blur();cockpit();hud();drawSparks(dt);
+  mpTick(dt);sfx.update();scene();blur();cockpit();hud();drawSparks(dt);
   if(state!==prevSt){if(state==='menu'||state==='over'||state==='pause')mi=0;prevSt=state}
   if(state==='menu')menuScreen(GAME_NAME,[],menuItems(),'Вид от первого лица · 4 полосы · поток на трассе');
   else if(state==='pause')menuScreen('ПАУЗА',[],menuItems());
+  else if(state==='over'&&MP.on&&RV)menuScreen('АВАРИЯ',['Очки: '+score()+' · Дистанция: '+(P.z/1000).toFixed(2)+' км','Соперник: '+RV.sc+' очк.'+(RV.crash?'':' (ещё едет)'),RV.crash?(score()>RV.sc?'ПОБЕДА!':score()<RV.sc?'ПОРАЖЕНИЕ':'НИЧЬЯ'):'Ждём финиша соперника…'],menuItems());
   else if(state==='over')menuScreen('АВАРИЯ',['Очки: '+score()+' · Дистанция: '+(P.z/1000).toFixed(2)+' км','Рекорд: '+best+' · +'+lastGain+' монет · Всего '+coins],menuItems());
   else if(state==='garage')garage();else if(state==='settings')settings();else if(state==='help')helpScreen();
   requestAnimationFrame(loop);
