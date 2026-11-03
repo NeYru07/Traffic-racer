@@ -1,7 +1,7 @@
 <!doctype html>
 <html lang="ru"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Traffic - Racer</title>
+<title>QUADLANE — гонка в потоке от первого лица</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='8' fill='%23171a23'/><path d='M6 20 L6 14 L10 10 L22 10 L26 14 L26 20 Z' fill='%23c0392b'/><rect x='9' y='11' width='14' height='4' fill='%23050608'/><rect x='7' y='16' width='4' height='2' fill='%23ffe14d'/><rect x='21' y='16' width='4' height='2' fill='%23ffe14d'/><rect x='8' y='20' width='4' height='4' fill='%23000'/><rect x='20' y='20' width='4' height='4' fill='%23000'/></svg>">
 <style>
 :root{box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);color-scheme:dark}
@@ -44,7 +44,7 @@ function garageKey(c){
   if(c==='ArrowLeft'||c==='KeyA')gi=(gi+CARS.length-1)%CARS.length;
   else if(c==='ArrowRight'||c==='KeyD')gi=(gi+1)%CARS.length;
   else if(c==='Enter'||c==='Space'){const k=CARS[gi];
-    if(own.includes(gi)){sel=gi;save()}
+    if(own.includes(gi)){if(sel===gi){start();return}sel=gi;save()}   // машина уже выбрана — Enter начинает игру
     else if(coins>=k.price){coins-=k.price;own.push(gi);sel=gi;save()}
     else{popup='Не хватает монет';popT=1.4}}
   else if(c==='Escape'||c==='KeyG'||c==='Backspace')state=gFrom;
@@ -59,6 +59,12 @@ addEventListener('keydown',e=>{
     if(e.code==='ShiftLeft'||e.code==='ShiftRight'||e.code==='KeyE')shiftGear(1);
     else if(e.code==='ControlLeft'||e.code==='ControlRight'||e.code==='KeyQ')shiftGear(-1);
   }
+  if(state==='help'){if(['Escape','Enter','Space','Backspace','KeyH'].includes(e.code))state=hFrom;return}
+  {const mit=menuItems();if(mit){
+    if(e.code==='ArrowUp'||e.code==='KeyW'){mi=(mi+mit.length-1)%mit.length;return}
+    if(e.code==='ArrowDown'||e.code==='KeyS'){mi=(mi+1)%mit.length;return}
+    if(e.code==='Enter'||e.code==='Space'){mit[mi%mit.length][1]();return}
+    if(state==='pause'&&(e.code==='Escape'||e.code==='KeyP')){state='play';return}}}
   if(state==='garage'){garageKey(e.code);return}
   if(state==='settings'){settingsKey(e.code);return}
   if(e.code==='KeyT'){manual=!manual;save();popup=manual?'Коробка: механика':'Коробка: автомат';popT=1.4}
@@ -371,13 +377,12 @@ function step(dt){
   cars.sort((a,b)=>b.z-a.z);
   for(const c of cars){
     ai(c,dt);c.z+=c.v*dt;
-    if(state!=='play'||P.crash>0&&c.passed)continue;
+    if(state!=='play')continue;
     const rel=c.z-P.z,gap=Math.abs(c.x-P.x)-(.9+c.T.w/2);
-    if(c.passed)continue;
-    if(rel+c.T.L<-2.4){c.passed=true;if(P.crash===0&&c.gap<4)sfx.pass(1-Math.max(0,c.gap)/4,c.T.k);if(c.gap>0&&c.gap<1&&P.v>16&&P.crash===0)near(c)}
-    else if(rel<1.9){c.gap=Math.min(c.gap,gap);if(gap<-.06&&P.crash===0)hit()}
+    if(!c.passed&&rel+c.T.L<-2.4){c.passed=true;if(P.crash===0&&c.gap<4)sfx.pass(1-Math.max(0,c.gap)/4,c.T.k);if(c.gap>0&&c.gap<1&&P.v>16&&P.crash===0)near(c)}
+    else if(rel<1.9&&rel+c.T.L>-2.4){if(!c.passed)c.gap=Math.min(c.gap,gap);if(gap<-.06&&P.crash===0)hit()}   // столкновение работает всегда — и с обогнанными машинами, догнавшими игрока сзади
   }
-  cars=cars.filter(c=>{const r=c.z-P.z;return r>-45&&r<FAR+SPAWN_BUF+120});
+  cars=cars.filter(c=>{const r=c.z-P.z;return r>-150&&r<FAR+SPAWN_BUF+120});   // позади держим до 150 м: догоняющих видно в зеркале и они успевают среагировать
   const target=Math.round(DENS[dens-1]*TRAFFIC_K);
   while(cars.length<target){const n=cars.length;spawn(FAR+40+Math.random()*(SPAWN_BUF-40));if(cars.length===n)break}   // появляются за горизонтом и плавно «входят» в зону видимости
 }
@@ -400,6 +405,8 @@ function safe(c,to){
 function ai(c,dt){
   const L=c.T.L;let ld=null,gap=1e9;
   for(const o of cars){if(o===c||o.z<=c.z||Math.abs(o.x-c.x)>=(c.T.w+o.T.w)/2+.25)continue;const g=o.z-(c.z+L);if(g<gap){gap=g;ld=o}}
+  // игрок — такое же препятствие: если он впереди и перекрывает полосу, едущий сзади тормозит или обгоняет, а не проезжает сквозь
+  {const pr=P.z-2.4;if(pr>c.z&&Math.abs(P.x-c.x)<(c.T.w+1.8)/2+.25){const g=pr-(c.z+L);if(g<gap){gap=g;ld={z:pr,v:P.v,x:P.x,pl:true}}}}
   const dv=ld?c.v-ld.v:0,dvp=Math.max(0,dv),can=c.cd<=0&&P.z>=300&&c.to===undefined;
   // дистанция, с которой водитель решает обгонять: зависит от характера, скорости сближения и тормозного пути
   const trigNow=c.trig0+dvp*(.4+.4*(1-c.asr))+dvp*dvp/16*(.5+.5*(1-c.asr));
@@ -409,7 +416,7 @@ function ai(c,dt){
   if(ld&&!(intend&&gap>trigNow*.75)){const sx=c.s0+c.v*c.th+Math.max(0,c.v*dv/(2*Math.sqrt(2.2*c.b)))*c.dvw;acc=2.2*(free-Math.pow(Math.max(sx,0)/Math.max(gap,.5),2))}
   if(ld&&dv>0&&gap/dv<c.ttc&&gap<50)acc=Math.min(acc,-7);   // аварийное торможение, если сближение слишком быстрое
   acc=Math.max(-9,Math.min(2.2,acc));c.br=acc<-1.2;c.v=Math.max(0,c.v+acc*dt);
-  if(ld&&gap<.8){c.z=ld.z-L-.8;c.v=Math.min(c.v,ld.v)}
+  if(ld&&!ld.pl&&gap<.8){c.z=ld.z-L-.8;c.v=Math.min(c.v,ld.v)}
   c.cd-=dt;c.nt-=dt;
   if(c.to!==undefined){
     if(c.warn>0){c.warn-=dt;if(!safe(c,c.to)){c.to=undefined;c.cd=2}}
@@ -839,7 +846,7 @@ function cockpit(){
 }
 
 function text(t,x,y,size,col,al='center',w='700'){ctx.font=`${w} ${size}px system-ui,'Segoe UI',sans-serif`;ctx.textAlign=al;ctx.fillStyle=col;ctx.fillText(t,x,y)}
-function hud(){if(state==='menu'||state==='garage'||state==='settings')return;
+function hud(){if(state==='menu'||state==='garage'||state==='settings'||state==='help')return;
   const u=Math.max(14,Math.min(W,H)*.03);
   text('ОЧКИ '+score(),W-20,u*1.6,u*1.3,'#fff','right');
   text('Дистанция '+(P.z/1000).toFixed(2)+' км · Рекорд '+best,W-20,u*2.9,u*.9,'#ffd9a0','right','500');
@@ -879,14 +886,15 @@ function garage(){
   const g=ctx.createLinearGradient(0,0,0,H);g.addColorStop(0,'#171a23');g.addColorStop(1,'#07080b');ctx.fillStyle=g;ctx.fillRect(0,0,W,H);
   const u=Math.max(14,Math.min(W,H)*.03),k=CARS[gi],has=own.includes(gi);
   text('ГАРАЖ',W/2,u*2.6,u*2.2,'#fff');text('Монеты: '+coins,W/2,u*4.3,u*1.1,'#ffe14d');
-  text('◀',W*.12,H*.47,u*3,'#667');text('▶',W*.88,H*.47,u*3,'#667');
+  btn(W*.06,H*.37,W*.1,H*.2,'◀',false,()=>garageKey('ArrowLeft'));btn(W*.84,H*.37,W*.1,H*.2,'▶',false,()=>garageKey('ArrowRight'));btn(u,u,u*8,u*2.2,'← Назад',false,()=>{state=gFrom});
   carPrev(W/2,H*.45,Math.min(W*.5,H*.85),k.col,k.cab);
   text(k.name,W/2,H*.65,u*1.8,'#fff');
-  text(has?(sel===gi?'ВЫБРАНА':'Enter — выбрать'):'Цена '+k.price+' · Enter — купить',W/2,H*.65+u*1.8,u*1.1,has?(sel===gi?'#7bd88f':'#ffe14d'):(coins>=k.price?'#ffe14d':'#ff7a7a'));
+  text(has?(sel===gi?'ВЫБРАНА':'Доступна'):'Цена '+k.price+' монет',W/2,H*.65+u*1.8,u*1.1,has?(sel===gi?'#7bd88f':'#d6dbe6'):(coins>=k.price?'#ffe14d':'#ff7a7a'));
+  btn(W/2+u*9,H*.78-u*.4,u*9.5,u*3,has?(sel===gi?'ИГРАТЬ':'ВЫБРАТЬ'):'КУПИТЬ',true,()=>garageKey('Enter'));
   const bx=W/2-u*3,bw=Math.min(W*.25,u*10);
   bar('Скорость',(k.v-55)/40,bx,H*.78,bw,u);bar('Разгон',k.a/12,bx,H*.78+u*1.5,bw,u);bar('Руление',(k.h-.9)/.4,bx,H*.78+u*3,bw,u);
   text(k.n+' передач · отсечка '+k.rl+' об/мин',W/2,H*.78+u*4.7,u*.95,'#8a90a0','center','500');
-  text('A / D или ← / → — листать · Esc — назад',W/2,H-u*1.2,u*.95,'#8a90a0','center','500');
+  text('A / D или ← / → — листать · Enter — '+(own.includes(gi)&&sel===gi?'играть':'выбрать / купить')+' · Esc — назад',W/2,H-u*1.2,u*.95,'#8a90a0','center','500');
   if(popT>0)text(popup,W/2,H*.2,u*1.4,'#ff7a7a');
 }
 function settingsKey(c){
@@ -902,7 +910,7 @@ function settingsKey(c){
 function settings(){
   const g=ctx.createLinearGradient(0,0,0,H);g.addColorStop(0,'#171a23');g.addColorStop(1,'#07080b');ctx.fillStyle=g;ctx.fillRect(0,0,W,H);
   const u=Math.max(14,Math.min(W,H)*.03);
-  text('НАСТРОЙКИ',W/2,u*3,u*2.2,'#fff');
+  text('НАСТРОЙКИ',W/2,u*3,u*2.2,'#fff');btn(u,u,u*8,u*2.2,'← Назад',false,()=>{state=sFrom});
   const rows=[['Громкость звука',vol,Math.round(vol*100)+'%'],['Плотность трафика',(dens-1)/4,['Очень редкий','Редкий','Обычный','Плотный','Очень плотный'][dens-1]],['Коробка передач',manual?1:.02,manual?'Механика (Shift / Ctrl)':'Автомат']];
   rows.forEach((r,i)=>{const y=H*.36+i*u*4.5,on=srow===i,bw=Math.min(W*.5,u*22),x=W/2-bw/2;
     text(r[0],x,y-u*.8,u*1.2,on?'#ffe14d':'#d6dbe6','left');
@@ -910,13 +918,56 @@ function settings(){
     text(r[2],x+bw,y-u*.8,u*1.1,'#fff','right')});
   text('↑ / ↓ — выбрать · ← / → — изменить · Esc — назад',W/2,H-u*1.2,u*.95,'#8a90a0','center','500');
 }
+// ---------- меню: главное, пауза, авария, управление ----------
+const GAME_NAME='QUADLANE';
+let mi=0,hFrom='menu',prevSt='menu';const BTN=[];
+function showMenu(){start();state='menu';mi=0}
+function openGarage(from){gFrom=from;gi=sel;state='garage'}
+function openSettings(from){sFrom=from;state='settings'}
+function menuItems(){
+  if(state==='menu')return[['Играть',()=>start()],['Гараж',()=>openGarage('menu')],['Настройки',()=>openSettings('menu')],['Управление',()=>{hFrom='menu';state='help'}]];
+  if(state==='over')return[['Играть снова',()=>start()],['Гараж',()=>openGarage('over')],['Настройки',()=>openSettings('over')],['В главное меню',showMenu]];
+  if(state==='pause')return[['Продолжить',()=>{state='play'}],['Заново',()=>start()],['Настройки',()=>openSettings('pause')],['Управление',()=>{hFrom='pause';state='help'}],['В главное меню',showMenu]];
+  return null;
+}
+function btn(x,y,w,h,label,on,fn,i){
+  BTN.push({x,y,w,h,fn,i});ctx.save();ctx.beginPath();ctx.roundRect(x,y,w,h,h*.28);
+  ctx.fillStyle=on?'rgba(255,225,77,.96)':'rgba(255,255,255,.09)';ctx.fill();ctx.strokeStyle=on?'#fff':'rgba(255,255,255,.2)';ctx.lineWidth=on?2.5:1.5;ctx.stroke();ctx.restore();
+  text(label,x+w/2,y+h*.66,h*.46,on?'#14161c':'#e8ebf2','center','700');
+}
+function menuScreen(title,lines,items,sub){
+  ctx.fillStyle='rgba(8,10,16,.58)';ctx.fillRect(0,0,W,H);
+  const u=Math.max(14,Math.min(W,H)*.03),cx0=W/2,big=title===GAME_NAME;
+  ctx.save();ctx.shadowColor='rgba(0,0,0,.65)';ctx.shadowBlur=u;text(title,cx0,H*.2,u*(big?4.6:3.4),'#fff','center','800');ctx.restore();
+  if(big)text(sub||'',cx0,H*.2+u*2,u*1,'#ffd9a0','center','500');
+  let y0=H*.2+u*(big?3.4:2.4);lines.forEach((l,i)=>text(l,cx0,y0+i*u*1.5,u*1.05,'#d6dbe6','center','500'));y0+=lines.length*u*1.5+u*.8;
+  const bw=Math.min(W*.55,u*20),bh=u*2.5,gp=u*.7,n=items.length;mi=((mi%n)+n)%n;
+  items.forEach((it,i)=>btn(cx0-bw/2,y0+i*(bh+gp),bw,bh,it[0],i===mi,it[1],i));
+  text('Машина: '+CAR.name+' · Монеты: '+coins+' · Рекорд: '+best,cx0,H-u*3,u*1,'#ffe14d','center','600');
+  text('↑ / ↓ — выбор · Enter — подтвердить · M — звук · T — механика / автомат',cx0,H-u*1.4,u*.9,'#8a90a0','center','500');
+}
+function helpScreen(){
+  const g=ctx.createLinearGradient(0,0,0,H);g.addColorStop(0,'#171a23');g.addColorStop(1,'#07080b');ctx.fillStyle=g;ctx.fillRect(0,0,W,H);
+  const u=Math.max(14,Math.min(W,H)*.03);
+  text('УПРАВЛЕНИЕ',W/2,u*3,u*2.4,'#fff','center','800');
+  const L=['W / ↑ — газ        S / ↓ — тормоз','A / ←  и  D / →  — руль','Механика: Shift или E — передача вверх, Ctrl или Q — вниз','T — переключить механику и автомат','Красная лампа на панели — пора переключиться; синяя — пора понизить','Свист шин и снос — на повороте скорость выше предела сцепления','P или Esc — пауза · R — перезапуск · M — звук'];
+  L.forEach((l,i)=>text(l,W/2,H*.3+i*u*2.1,u*1.15,'#d6dbe6','center','500'));
+  btn(u,u,u*8,u*2.2,'← Назад',false,()=>{state=hFrom});
+  text('Enter или Esc — назад',W/2,H-u*1.4,u*.95,'#8a90a0','center','500');
+}
+cv.addEventListener('mousemove',e=>{const r=cv.getBoundingClientRect(),x=e.clientX-r.left,y=e.clientY-r.top;
+  for(const b of BTN)if(x>=b.x&&x<=b.x+b.w&&y>=b.y&&y<=b.y+b.h){if(b.i!==undefined)mi=b.i;cv.style.cursor='pointer';return}cv.style.cursor='default'});
+cv.addEventListener('click',e=>{sfx.init();const r=cv.getBoundingClientRect(),x=e.clientX-r.left,y=e.clientY-r.top;
+  for(const b of BTN)if(x>=b.x&&x<=b.x+b.w&&y>=b.y&&y<=b.y+b.h){b.fn();return}});
 function loop(ts){
   const dt=Math.min(.033,(ts-last)/1000||0);last=ts;
-  if(state!=='pause'&&state!=='garage'&&state!=='settings')step(dt);if(state==='garage')popT=Math.max(0,popT-dt);
+  BTN.length=0;if(state!=='pause'&&state!=='garage'&&state!=='settings'&&state!=='help')step(dt);if(state==='garage')popT=Math.max(0,popT-dt);
   sfx.update();scene();blur();cockpit();hud();drawSparks(dt);
-  if(state==='menu')overlay('ШАШКИ В ПОТОКЕ',['Вид от первого лица · 4 полосы · легковые, грузовики, автобусы','W / ↑ — газ     S / ↓ — тормоз','A / ← и D / → — руль','P или Esc — пауза · R — перезапуск · M — звук','Коробка: '+(manual?'механика · Shift или E — вверх · Ctrl или Q — вниз':'автомат')+' · T — сменить','G — гараж · O — настройки · Монеты: '+coins+' · '+CAR.name,'Пробел или Enter — старт']);
-  else if(state==='pause')overlay('ПАУЗА',['Пробел, Enter или P — продолжить · O — настройки']);
-  else if(state==='over')overlay('АВАРИЯ',['Очки: '+score()+' · Дистанция: '+(P.z/1000).toFixed(2)+' км','Рекорд: '+best+' · +'+lastGain+' монет · Всего '+coins,'Пробел или Enter — заново · G — гараж · O — настройки']);else if(state==='garage')garage();else if(state==='settings')settings();
+  if(state!==prevSt){if(state==='menu'||state==='over'||state==='pause')mi=0;prevSt=state}
+  if(state==='menu')menuScreen(GAME_NAME,[],menuItems(),'Вид от первого лица · 4 полосы · поток на трассе');
+  else if(state==='pause')menuScreen('ПАУЗА',[],menuItems());
+  else if(state==='over')menuScreen('АВАРИЯ',['Очки: '+score()+' · Дистанция: '+(P.z/1000).toFixed(2)+' км','Рекорд: '+best+' · +'+lastGain+' монет · Всего '+coins],menuItems());
+  else if(state==='garage')garage();else if(state==='settings')settings();else if(state==='help')helpScreen();
   requestAnimationFrame(loop);
 }
 start();state='menu';requestAnimationFrame(loop);
